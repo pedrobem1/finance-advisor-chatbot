@@ -16,7 +16,15 @@ def test_health_check() -> None:
     }
 
 
-def test_chat_returns_placeholder_answer() -> None:
+def test_chat_returns_agent_answer(monkeypatch) -> None:
+    async def fake_run_finance_agent(message: str) -> str:
+        return f"Resposta simulada para: {message}"
+
+    monkeypatch.setattr(
+        "app.api.routes.chat.run_finance_agent",
+        fake_run_finance_agent,
+    )
+
     response = client.post(
         "/chat",
         json={"message": "O que e uma acao?"},
@@ -24,8 +32,8 @@ def test_chat_returns_placeholder_answer() -> None:
 
     assert response.status_code == 200
     assert response.json() == {
-        "answer": "Recebi sua pergunta: O que e uma acao?",
-        "agent": "placeholder",
+        "answer": "Resposta simulada para: O que e uma acao?",
+        "agent": "finance_agent",
     }
 
 
