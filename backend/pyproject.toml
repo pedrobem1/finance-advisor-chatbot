@@ -1,0 +1,21 @@
+[project]
+name = "mnc-finance-backend"
+version = "0.1.0"
+description = "Backend do MNC Finance Chatbot"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.115,<1.0",
+    "openai-agents>=0.2,<1.0",
+    "pydantic-settings>=2.6,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1.0",
+    "pytest>=8.3,<9.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
