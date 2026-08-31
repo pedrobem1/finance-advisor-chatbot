@@ -2,11 +2,14 @@ from dataclasses import dataclass
 
 from agents import Agent, Runner
 
+from app.agents.chart_agent import chart_agent
 from app.agents.finance_agent import finance_agent
 from app.agents.rag_agent import rag_agent
+from app.core.run_context import ChatRunContext
+from app.schemas.chart import ChartArtifact
 
 
-master_agent = Agent(
+master_agent = Agent[ChatRunContext](
     name="Master Agent",
     instructions=(
         "Voce e o agente principal de um chatbot financeiro. Mantenha o controle "
@@ -14,8 +17,10 @@ master_agent = Agent(
         "Use o finance_specialist para dados de mercado ou analise de um ativo. "
         "Use o rag_specialist para definicoes, conceitos e explicacoes "
         "educacionais baseadas na base de conhecimento. Preserve as fontes "
-        "informadas pelo especialista quando elas existirem. Combine o resultado "
-        "recebido com a pergunta do usuario e seja claro sobre limites e "
+        "informadas pelo especialista quando elas existirem. Use o "
+        "chart_specialist quando o usuario pedir um grafico, historico ou "
+        "evolucao de preco. Combine o resultado recebido com a pergunta do "
+        "usuario e seja claro sobre limites e "
         "atualizacao dos dados. "
         "Nao ofereca recomendacoes personalizadas de compra ou venda."
     ),
@@ -36,6 +41,13 @@ master_agent = Agent(
                 "explicacoes de termos financeiros."
             ),
         ),
+        chart_agent.as_tool(
+            tool_name="chart_specialist",
+            tool_description=(
+                "Especialista em graficos de historico de precos. Use quando o "
+                "usuario pedir um grafico ou uma serie historica de um ticker."
+            ),
+        ),
     ],
 )
 
@@ -44,6 +56,7 @@ master_agent = Agent(
 class MasterAgentResponse:
     answer: str
     tools_used: list[str]
+    charts: list[ChartArtifact]
 
 
 def extract_tools_used(run_result) -> list[str]:
@@ -59,8 +72,10 @@ def extract_tools_used(run_result) -> list[str]:
 
 
 async def run_master_agent(message: str) -> MasterAgentResponse:
-    result = await Runner.run(master_agent, message)
+    context = ChatRunContext()
+    result = await Runner.run(master_agent, message, context=context)
     return MasterAgentResponse(
         answer=str(result.final_output),
         tools_used=extract_tools_used(result),
+        charts=context.charts,
     )

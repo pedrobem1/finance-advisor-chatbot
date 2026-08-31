@@ -8,6 +8,7 @@ dependencies = [
     "fastapi[standard]>=0.115,<1.0",
     "openai>=2.0,<4.0",
     "openai-agents>=0.2,<1.0",
+    "plotly>=6.0,<7.0",
     "pypdf>=5.0,<7.0",
     "yfinance>=0.2.50,<1.0",
     "pydantic-settings>=2.6,<3.0",

@@ -23,6 +23,12 @@ def test_get_ticker_summary_returns_price_and_change(monkeypatch) -> None:
     assert result.change_percent == 5.0
 
 
+def test_normalize_symbol_adds_b3_suffix() -> None:
+    assert market_data.normalize_symbol("petr4") == "PETR4.SA"
+    assert market_data.normalize_symbol("hglg11") == "HGLG11.SA"
+    assert market_data.normalize_symbol("AAPL") == "AAPL"
+
+
 def test_get_ticker_summary_rejects_invalid_symbol() -> None:
     try:
         market_data.get_ticker_summary("ticker invalido")
@@ -31,3 +37,31 @@ def test_get_ticker_summary_rejects_invalid_symbol() -> None:
     else:
         raise AssertionError("Expected MarketDataError")
 
+
+def test_get_price_history_returns_points(monkeypatch) -> None:
+    class HistoryTicker:
+        info = {"shortName": "Empresa Teste", "currency": "BRL"}
+
+        def history(self, **kwargs):
+            return pd.DataFrame(
+                {"Close": [10.0, 10.5]},
+                index=pd.to_datetime(["2026-01-02", "2026-01-05"]),
+            )
+
+    monkeypatch.setattr(market_data.yf, "Ticker", lambda symbol: HistoryTicker())
+
+    result = market_data.get_price_history("teste.sa", "1mo")
+
+    assert result.symbol == "TESTE.SA"
+    assert result.period == "1mo"
+    assert result.points[0].date == "2026-01-02"
+    assert result.points[1].close == 10.5
+
+
+def test_get_price_history_rejects_invalid_period() -> None:
+    try:
+        market_data.get_price_history("PETR4.SA", "2d")
+    except market_data.MarketDataError as error:
+        assert "Periodo invalido" in str(error)
+    else:
+        raise AssertionError("Expected MarketDataError")

@@ -22,6 +22,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         return MasterAgentResponse(
             answer=f"Resposta simulada para: {message}",
             tools_used=["finance_specialist"],
+            charts=[],
         )
 
     monkeypatch.setattr(
@@ -39,6 +40,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         "answer": "Resposta simulada para: O que e uma acao?",
         "agent": "master_agent",
         "tools_used": ["finance_specialist"],
+        "charts": [],
     }
 
 
