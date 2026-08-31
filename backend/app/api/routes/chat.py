@@ -14,4 +14,5 @@ async def chat(request: ChatRequest) -> ChatResponse:
         answer=result.answer,
         agent="master_agent",
         tools_used=result.tools_used,
+        charts=result.charts,
     )

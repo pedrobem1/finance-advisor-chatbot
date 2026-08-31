@@ -2,6 +2,7 @@ import json
 
 from agents import Agent, Runner, function_tool
 
+from app.core.run_context import ChatRunContext
 from app.rag.retriever import RAGError, search_financial_knowledge
 
 
@@ -19,7 +20,7 @@ def search_knowledge_base(question: str) -> str:
     )
 
 
-rag_agent = Agent(
+rag_agent = Agent[ChatRunContext](
     name="RAG Agent",
     instructions=(
         "Voce e um especialista em responder conceitos financeiros com base na "
@@ -34,6 +35,5 @@ rag_agent = Agent(
 
 
 async def run_rag_agent(message: str) -> str:
-    result = await Runner.run(rag_agent, message)
+    result = await Runner.run(rag_agent, message, context=ChatRunContext())
     return result.final_output
-

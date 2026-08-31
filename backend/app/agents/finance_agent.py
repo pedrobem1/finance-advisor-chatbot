@@ -2,6 +2,7 @@ import json
 
 from agents import Agent, Runner, function_tool
 
+from app.core.run_context import ChatRunContext
 from app.tools.market_data import MarketDataError, get_ticker_summary
 
 
@@ -16,7 +17,7 @@ def get_market_summary(symbol: str) -> str:
     return summary.model_dump_json()
 
 
-finance_agent = Agent(
+finance_agent = Agent[ChatRunContext](
     name="Finance Agent",
     instructions=(
         "Voce e um educador financeiro. Responda perguntas sobre acoes, ETFs, "
@@ -32,5 +33,5 @@ finance_agent = Agent(
 
 
 async def run_finance_agent(message: str) -> str:
-    result = await Runner.run(finance_agent, message)
+    result = await Runner.run(finance_agent, message, context=ChatRunContext())
     return result.final_output

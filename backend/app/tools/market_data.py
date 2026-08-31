@@ -4,6 +4,11 @@ import yfinance as yf
 from pydantic import BaseModel
 
 
+SUPPORTED_HISTORY_PERIODS = {"1mo", "3mo", "6mo", "1y", "5y"}
+TICKER_PATTERN = re.compile(r"[A-Z0-9.\-^]{1,20}")
+B3_TICKER_PATTERN = re.compile(r"[A-Z]{4,5}\d{1,2}")
+
+
 class MarketDataError(ValueError):
     """Raised when market data cannot be retrieved for a ticker."""
 
@@ -17,10 +22,30 @@ class TickerSummary(BaseModel):
     change_percent: float | None
 
 
-def get_ticker_summary(symbol: str) -> TickerSummary:
+class PricePoint(BaseModel):
+    date: str
+    close: float
+
+
+class PriceHistory(BaseModel):
+    symbol: str
+    name: str
+    currency: str | None
+    period: str
+    points: list[PricePoint]
+
+
+def normalize_symbol(symbol: str) -> str:
     normalized_symbol = symbol.strip().upper()
-    if not re.fullmatch(r"[A-Z0-9.\-^]{1,20}", normalized_symbol):
+    if not TICKER_PATTERN.fullmatch(normalized_symbol):
         raise MarketDataError("Ticker invalido.")
+    if B3_TICKER_PATTERN.fullmatch(normalized_symbol):
+        return f"{normalized_symbol}.SA"
+    return normalized_symbol
+
+
+def get_ticker_summary(symbol: str) -> TickerSummary:
+    normalized_symbol = normalize_symbol(symbol)
 
     ticker = yf.Ticker(normalized_symbol)
     history = ticker.history(period="5d", auto_adjust=False)
@@ -51,3 +76,36 @@ def get_ticker_summary(symbol: str) -> TickerSummary:
         change_percent=change_percent,
     )
 
+
+def get_price_history(symbol: str, period: str = "1mo") -> PriceHistory:
+    normalized_symbol = normalize_symbol(symbol)
+    if period not in SUPPORTED_HISTORY_PERIODS:
+        raise MarketDataError(
+            f"Periodo invalido. Use um destes: {', '.join(sorted(SUPPORTED_HISTORY_PERIODS))}."
+        )
+
+    ticker = yf.Ticker(normalized_symbol)
+    history = ticker.history(period=period, auto_adjust=False)
+    if history.empty or "Close" not in history:
+        raise MarketDataError(f"Nao foi possivel encontrar historico para {normalized_symbol}.")
+
+    closes = history["Close"].dropna()
+    if closes.empty:
+        raise MarketDataError(f"Nao foi possivel encontrar precos para {normalized_symbol}.")
+
+    try:
+        info = ticker.info
+    except Exception:
+        info = {}
+
+    points = [
+        PricePoint(date=index.date().isoformat(), close=float(close))
+        for index, close in closes.items()
+    ]
+    return PriceHistory(
+        symbol=normalized_symbol,
+        name=info.get("longName") or info.get("shortName") or normalized_symbol,
+        currency=info.get("currency"),
+        period=period,
+        points=points,
+    )
