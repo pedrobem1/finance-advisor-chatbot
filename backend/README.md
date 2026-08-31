@@ -25,3 +25,10 @@ curl http://127.0.0.1:8000/health
 uv run pytest
 ```
 
+## Criar o indice RAG
+
+Depois de adicionar ou alterar documentos em `../knowledge/`, execute:
+
+```bash
+uv run python -m scripts.build_rag_index
+```

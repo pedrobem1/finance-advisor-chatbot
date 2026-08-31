@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.agents.master_agent import MasterAgentResponse
 from app.main import app
 
 
@@ -17,8 +18,11 @@ def test_health_check() -> None:
 
 
 def test_chat_returns_agent_answer(monkeypatch) -> None:
-    async def fake_run_master_agent(message: str) -> str:
-        return f"Resposta simulada para: {message}"
+    async def fake_run_master_agent(message: str) -> MasterAgentResponse:
+        return MasterAgentResponse(
+            answer=f"Resposta simulada para: {message}",
+            tools_used=["finance_specialist"],
+        )
 
     monkeypatch.setattr(
         "app.api.routes.chat.run_master_agent",
@@ -34,6 +38,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
     assert response.json() == {
         "answer": "Resposta simulada para: O que e uma acao?",
         "agent": "master_agent",
+        "tools_used": ["finance_specialist"],
     }
 
 
