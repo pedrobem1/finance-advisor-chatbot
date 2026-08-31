@@ -8,9 +8,10 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    answer = await run_master_agent(request.message)
+    result = await run_master_agent(request.message)
 
     return ChatResponse(
-        answer=answer,
+        answer=result.answer,
         agent="master_agent",
+        tools_used=result.tools_used,
     )
