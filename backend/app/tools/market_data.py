@@ -47,8 +47,14 @@ def normalize_symbol(symbol: str) -> str:
 def get_ticker_summary(symbol: str) -> TickerSummary:
     normalized_symbol = normalize_symbol(symbol)
 
-    ticker = yf.Ticker(normalized_symbol)
-    history = ticker.history(period="5d", auto_adjust=False)
+    try:
+        ticker = yf.Ticker(normalized_symbol)
+        history = ticker.history(period="5d", auto_adjust=False)
+    except Exception as error:
+        raise MarketDataError(
+            f"Nao foi possivel consultar dados de mercado para {normalized_symbol}."
+        ) from error
+
     if history.empty or "Close" not in history:
         raise MarketDataError(f"Nao foi possivel encontrar dados para {normalized_symbol}.")
 
@@ -84,8 +90,14 @@ def get_price_history(symbol: str, period: str = "1mo") -> PriceHistory:
             f"Periodo invalido. Use um destes: {', '.join(sorted(SUPPORTED_HISTORY_PERIODS))}."
         )
 
-    ticker = yf.Ticker(normalized_symbol)
-    history = ticker.history(period=period, auto_adjust=False)
+    try:
+        ticker = yf.Ticker(normalized_symbol)
+        history = ticker.history(period=period, auto_adjust=False)
+    except Exception as error:
+        raise MarketDataError(
+            f"Nao foi possivel consultar o historico de {normalized_symbol}."
+        ) from error
+
     if history.empty or "Close" not in history:
         raise MarketDataError(f"Nao foi possivel encontrar historico para {normalized_symbol}.")
 

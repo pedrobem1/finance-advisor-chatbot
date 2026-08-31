@@ -1,14 +1,100 @@
-from fastapi import APIRouter
+import logging
+
+from agents.exceptions import AgentsException, MaxTurnsExceeded, ModelTimeoutError
+from fastapi import APIRouter, HTTPException
+from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAIError, RateLimitError
 
 from app.agents.master_agent import run_master_agent
+from app.core.config import get_settings
+from app.rag.retriever import RAGError
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.tools.market_data import MarketDataError
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
+
+
+class AIConfigurationError(Exception):
+    """Raised when the application does not have an OpenAI API key."""
+
+
+def chat_error_response(error: Exception) -> HTTPException:
+    logger.warning("Chat request failed with %s", type(error).__name__)
+
+    if isinstance(error, (AIConfigurationError, AuthenticationError)):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "ai_configuration_error",
+                "message": "O servico de IA nao esta configurado corretamente.",
+            },
+        )
+    if isinstance(error, RateLimitError):
+        return HTTPException(
+            status_code=429,
+            detail={
+                "code": "ai_rate_limited",
+                "message": "O servico de IA esta com muitas solicitacoes. Tente novamente em instantes.",
+            },
+        )
+    if isinstance(error, (APITimeoutError, APIConnectionError, ModelTimeoutError)):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "ai_unavailable",
+                "message": "O servico de IA esta indisponivel no momento. Tente novamente em instantes.",
+            },
+        )
+    if isinstance(error, MaxTurnsExceeded):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "agent_limit_reached",
+                "message": "Nao consegui concluir essa analise agora. Tente reformular a pergunta.",
+            },
+        )
+    if isinstance(error, MarketDataError):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "market_data_unavailable",
+                "message": "Os dados de mercado estao indisponiveis no momento. Tente novamente em instantes.",
+            },
+        )
+    if isinstance(error, RAGError):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "knowledge_base_unavailable",
+                "message": "A base de conhecimento esta indisponivel no momento. Tente novamente em instantes.",
+            },
+        )
+    return HTTPException(
+        status_code=502,
+        detail={
+            "code": "agent_execution_error",
+            "message": "Nao foi possivel concluir sua pergunta agora. Tente novamente em instantes.",
+        },
+    )
 
 
 @router.post("", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    result = await run_master_agent(request.message)
+    if not get_settings().openai_api_key:
+        raise chat_error_response(AIConfigurationError())
+
+    try:
+        result = await run_master_agent(request.message)
+    except (
+        AgentsException,
+        APIConnectionError,
+        APITimeoutError,
+        AuthenticationError,
+        MarketDataError,
+        OpenAIError,
+        RAGError,
+    ) as error:
+        raise chat_error_response(error) from error
 
     return ChatResponse(
         answer=result.answer,

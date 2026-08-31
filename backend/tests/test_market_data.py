@@ -38,6 +38,21 @@ def test_get_ticker_summary_rejects_invalid_symbol() -> None:
         raise AssertionError("Expected MarketDataError")
 
 
+def test_get_ticker_summary_converts_provider_failure_to_market_data_error(monkeypatch) -> None:
+    class UnavailableTicker:
+        def history(self, **kwargs):
+            raise ConnectionError("provider unavailable")
+
+    monkeypatch.setattr(market_data.yf, "Ticker", lambda symbol: UnavailableTicker())
+
+    try:
+        market_data.get_ticker_summary("PETR4")
+    except market_data.MarketDataError as error:
+        assert str(error) == "Nao foi possivel consultar dados de mercado para PETR4.SA."
+    else:
+        raise AssertionError("Expected MarketDataError")
+
+
 def test_get_price_history_returns_points(monkeypatch) -> None:
     class HistoryTicker:
         info = {"shortName": "Empresa Teste", "currency": "BRL"}
