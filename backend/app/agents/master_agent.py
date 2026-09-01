@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from agents import Agent, Runner
 
@@ -6,6 +7,7 @@ from app.agents.chart_agent import chart_agent
 from app.agents.finance_agent import finance_agent
 from app.agents.rag_agent import rag_agent
 from app.core.run_context import ChatRunContext
+from app.conversations.sessions import create_conversation_session
 from app.schemas.chart import ChartArtifact
 
 
@@ -71,9 +73,14 @@ def extract_tools_used(run_result) -> list[str]:
     return tools_used
 
 
-async def run_master_agent(message: str) -> MasterAgentResponse:
+async def run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
+    session = create_conversation_session(conversation_id)
     context = ChatRunContext()
-    result = await Runner.run(master_agent, message, context=context)
+    try:
+        result = await Runner.run(master_agent, message, context=context, session=session)
+    finally:
+        session.close()
+
     return MasterAgentResponse(
         answer=str(result.final_output),
         tools_used=extract_tools_used(result),

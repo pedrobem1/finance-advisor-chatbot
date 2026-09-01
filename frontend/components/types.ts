@@ -11,8 +11,27 @@ export type ChartArtifact = {
 export type ChatApiResponse = {
   answer: string;
   agent: string;
+  conversation_id: string;
   tools_used: string[];
   charts: ChartArtifact[];
+};
+
+export type ChatApiErrorResponse = {
+  detail?: {
+    code?: string;
+    message?: string;
+  } | string;
+};
+
+export type ConversationSummary = {
+  conversation_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConversationDetail = ConversationSummary & {
+  messages: ChatMessage[];
 };
 
 export type ChatMessage = {

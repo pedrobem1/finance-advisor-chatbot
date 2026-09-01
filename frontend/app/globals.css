@@ -44,7 +44,16 @@ button { cursor: pointer; }
 .new-chat:hover { border-color: #456074; background: #19212a; }
 
 .sidebar-section { margin-top: 34px; padding: 0 8px; }
+.sidebar-section--conversations { min-height: 0; }
 .sidebar-label, .eyebrow { margin: 0; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0; }
+.conversation-list { display: grid; gap: 4px; margin-top: 12px; max-height: 220px; overflow-y: auto; }
+.conversation-row { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; border: 1px solid transparent; border-radius: 5px; }
+.conversation-row:hover, .conversation-row--active { border-color: var(--line); background: var(--panel); }
+.conversation-open { min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #b8c3cf; padding: 8px; text-align: left; font-size: 12px; }
+.conversation-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-delete { width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); opacity: 0; }.conversation-row:hover .conversation-delete, .conversation-row--active .conversation-delete { opacity: 1; }.conversation-delete:hover { color: var(--red); }
+.conversation-open:disabled, .conversation-delete:disabled { cursor: not-allowed; opacity: .4; }
+.empty-conversations { margin: 13px 0 0; color: #6f7c8a; font-size: 11px; }
 .agent-list { display: grid; gap: 13px; margin-top: 16px; color: #b8c3cf; font-size: 13px; }
 .agent-list div { display: flex; align-items: center; gap: 9px; }
 .agent-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -54,6 +63,8 @@ button { cursor: pointer; }
 .workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100vh; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 26px clamp(20px, 4vw, 64px); border-bottom: 1px solid var(--line-soft); }
 .topbar h1 { margin: 6px 0 0; font-size: 20px; font-weight: 650; letter-spacing: 0; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.mobile-history-toggle { display: none; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
 .status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .status span { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(80, 216, 144, 0.1); }
 
@@ -85,11 +96,20 @@ button { cursor: pointer; }
 .composer textarea::placeholder { color: #657484; }
 .send-button { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--green); color: #0a160e; }.send-button:hover { background: #6be6a5; }.send-button:disabled { cursor: not-allowed; opacity: .38; }
 .disclaimer { width: min(920px, 100%); margin: 10px auto 0; display: flex; justify-content: center; gap: 6px; color: #6f7c8a; font-size: 10px; }.error-message { width: min(920px, 100%); margin: 0 auto 10px; color: var(--red); font-size: 12px; }
+.mobile-conversation-panel { display: none; }
 
 @media (max-width: 760px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .topbar { padding: 20px; }.topbar h1 { font-size: 18px; }
+  .mobile-history-toggle { display: grid; }
   .chat-stream { padding: 26px 18px 18px; }.composer-wrap { padding: 12px 18px 18px; }
   .status { font-size: 10px; }.examples button { font-size: 10px; }
+  .mobile-conversation-panel { display: block; position: fixed; inset: 0 0 auto; z-index: 10; min-height: 100vh; padding: 20px 18px; background: #0e1217; border-bottom: 1px solid var(--line); overflow-y: auto; }
+  .mobile-conversation-panel__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: var(--text); font-size: 15px; font-weight: 700; }
+  .mobile-conversation-panel__header button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
+  .mobile-new-chat { width: 100%; margin-bottom: 18px; }
+  .mobile-conversation-panel .conversation-list { max-height: none; }
+  .mobile-conversation-panel .conversation-open { font-size: 13px; }
+  .mobile-conversation-panel .conversation-delete { opacity: 1; }
 }
