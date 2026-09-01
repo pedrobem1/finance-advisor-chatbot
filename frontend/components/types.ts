@@ -12,6 +12,7 @@ export type ChatApiResponse = {
   answer: string;
   agent: string;
   conversation_id: string;
+  suggested_questions: string[];
   tools_used: string[];
   charts: ChartArtifact[];
 };

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from agents import SQLiteSession
 from app.agents import master_agent
-from app.agents.master_agent import extract_tools_used
+from app.agents.master_agent import MasterAgentOutput, extract_tools_used
 
 
 def test_extract_tools_used_preserves_unique_tool_order() -> None:
@@ -29,7 +29,13 @@ def test_run_master_agent_uses_sqlite_session(monkeypatch, tmp_path) -> None:
     async def fake_runner_run(agent, message, *, context, session):
         nonlocal captured_session
         captured_session = session
-        return SimpleNamespace(final_output="Resposta", new_items=[])
+        return SimpleNamespace(
+            final_output=MasterAgentOutput(
+                answer="Resposta",
+                suggested_questions=["Uma", "Duas", "Tres"],
+            ),
+            new_items=[],
+        )
 
     def fake_create_session(received_id: UUID) -> SQLiteSession:
         return SQLiteSession(
@@ -45,6 +51,7 @@ def test_run_master_agent_uses_sqlite_session(monkeypatch, tmp_path) -> None:
     result = asyncio.run(master_agent.run_master_agent("Ola", conversation_id))
 
     assert result.answer == "Resposta"
+    assert result.suggested_questions == ["Uma", "Duas", "Tres"]
     assert captured_session is not None
     assert captured_session.session_id == str(conversation_id)
     assert captured_session.db_path == tmp_path / "conversations.db"

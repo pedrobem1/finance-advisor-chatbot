@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from agents import Agent, Runner
+from pydantic import BaseModel, Field
 
 from app.agents.chart_agent import chart_agent
 from app.agents.finance_agent import finance_agent
@@ -9,6 +10,11 @@ from app.agents.rag_agent import rag_agent
 from app.core.run_context import ChatRunContext
 from app.conversations.sessions import create_conversation_session
 from app.schemas.chart import ChartArtifact
+
+
+class MasterAgentOutput(BaseModel):
+    answer: str
+    suggested_questions: list[str] = Field(min_length=3, max_length=3)
 
 
 master_agent = Agent[ChatRunContext](
@@ -24,8 +30,12 @@ master_agent = Agent[ChatRunContext](
         "evolucao de preco. Combine o resultado recebido com a pergunta do "
         "usuario e seja claro sobre limites e "
         "atualizacao dos dados. "
-        "Nao ofereca recomendacoes personalizadas de compra ou venda."
+        "Nao ofereca recomendacoes personalizadas de compra ou venda. "
+        "Ao finalizar, gere exatamente tres perguntas curtas de continuacao, "
+        "em portugues, relevantes para a ultima pergunta e para sua resposta. "
+        "As perguntas devem aprofundar a analise sem repetir a pergunta do usuario."
     ),
+    output_type=MasterAgentOutput,
     tools=[
         finance_agent.as_tool(
             tool_name="finance_specialist",
@@ -57,6 +67,7 @@ master_agent = Agent[ChatRunContext](
 @dataclass(frozen=True)
 class MasterAgentResponse:
     answer: str
+    suggested_questions: list[str]
     tools_used: list[str]
     charts: list[ChartArtifact]
 
@@ -82,7 +93,8 @@ async def run_master_agent(message: str, conversation_id: UUID) -> MasterAgentRe
         session.close()
 
     return MasterAgentResponse(
-        answer=str(result.final_output),
+        answer=result.final_output.answer,
+        suggested_questions=result.final_output.suggested_questions,
         tools_used=extract_tools_used(result),
         charts=context.charts,
     )

@@ -50,6 +50,7 @@ async function getApiErrorMessage(response: Response) {
 export function FinanceChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
   const [message, setMessage] = useState("");
+  const [suggestedQuestions, setSuggestedQuestions] = useState(EXAMPLE_PROMPTS);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
@@ -74,6 +75,7 @@ export function FinanceChat() {
   function startNewConversation() {
     setMessages([INITIAL_MESSAGE]);
     setConversationId(null);
+    setSuggestedQuestions(EXAMPLE_PROMPTS);
     setError(null);
     setIsConversationPanelOpen(false);
     inputRef.current?.focus();
@@ -88,6 +90,7 @@ export function FinanceChat() {
       const conversation = (await response.json()) as ConversationDetail;
       setMessages(conversation.messages);
       setConversationId(conversation.conversation_id);
+      setSuggestedQuestions(EXAMPLE_PROMPTS);
       setError(null);
       setIsConversationPanelOpen(false);
     } catch (error) {
@@ -132,6 +135,7 @@ export function FinanceChat() {
 
       const result = (await response.json()) as ChatApiResponse;
       setConversationId(result.conversation_id);
+      setSuggestedQuestions(result.suggested_questions);
       await refreshConversations();
       setMessages((current) => [
         ...current,
@@ -255,7 +259,7 @@ export function FinanceChat() {
         <div className="composer-wrap">
           {error && <p className="error-message">{error}</p>}
           <div className="examples" aria-label="Perguntas sugeridas">
-            {EXAMPLE_PROMPTS.map((prompt) => (
+            {suggestedQuestions.map((prompt) => (
               <button type="button" key={prompt} onClick={() => void submitMessage(prompt)}>{prompt}</button>
             ))}
           </div>
