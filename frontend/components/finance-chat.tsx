@@ -2,7 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Activity, ArrowUpRight, Bot, ChartNoAxesCombined, History, Plus, Send, Sparkles, X } from "lucide-react";
+import { Activity, ArrowUpRight, Bot, ChartNoAxesCombined, History, Info, Plus, Send, Sparkles, X } from "lucide-react";
 
 import { ConversationList } from "./conversation-list";
 import { PriceChart } from "./price-chart";
@@ -11,15 +11,27 @@ import type { ChatApiErrorResponse, ChatApiResponse, ChatMessage, ConversationDe
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 const EXAMPLE_PROMPTS = [
-  "Explique o que e um ETF",
-  "Qual o preco atual da PETR4?",
-  "Gere um grafico da PETR4 nos ultimos 3 meses"
+  "Explique o que é um ETF",
+  "Qual o preço atual da PETR4?",
+  "Gere um gráfico da PETR4 nos últimos 3 meses"
 ];
 
 const INITIAL_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
-  content: "O que voce quer analisar hoje?"
+  content: "O que você quer analisar hoje?"
+};
+
+const SPECIALISTS = [
+  { name: "Mercado", dot: "agent-dot--green", description: "Consulta cotações, indicadores e dividendos de ativos." },
+  { name: "Conhecimento", dot: "agent-dot--cyan", description: "Busca conceitos financeiros nos documentos indexados." },
+  { name: "Gráficos", dot: "agent-dot--amber", description: "Gera históricos e comparações visuais de preços." }
+];
+
+const TOOL_METADATA: Record<string, { label: string; tone: string }> = {
+  finance_specialist: { label: "Mercado", tone: "green" },
+  rag_specialist: { label: "Conhecimento", tone: "cyan" },
+  chart_specialist: { label: "Gráfico", tone: "amber" }
 };
 
 function normalizeMarkdown(content: string) {
@@ -27,16 +39,15 @@ function normalizeMarkdown(content: string) {
 }
 
 function labelForTool(tool: string) {
-  const labels: Record<string, string> = {
-    finance_specialist: "Mercado",
-    rag_specialist: "Conhecimento",
-    chart_specialist: "Grafico"
-  };
-  return labels[tool] ?? tool;
+  return TOOL_METADATA[tool]?.label ?? tool;
+}
+
+function toolBadgeClass(tool: string) {
+  return `tool-badge tool-badge--${TOOL_METADATA[tool]?.tone ?? "default"}`;
 }
 
 async function getApiErrorMessage(response: Response) {
-  const fallback = "Nao foi possivel concluir sua pergunta agora. Tente novamente em instantes.";
+  const fallback = "Não foi possível concluir sua pergunta agora. Tente novamente em instantes.";
 
   try {
     const payload = (await response.json()) as ChatApiErrorResponse;
@@ -54,13 +65,20 @@ export function FinanceChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatStreamRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     void refreshConversations();
   }, []);
+
+  useEffect(() => {
+    const stream = chatStreamRef.current;
+    if (stream) stream.scrollTo({ top: stream.scrollHeight, behavior: "smooth" });
+  }, [messages, isLoading]);
 
   async function refreshConversations() {
     try {
@@ -68,7 +86,7 @@ export function FinanceChat() {
       if (!response.ok) throw new Error(await getApiErrorMessage(response));
       setConversations((await response.json()) as ConversationSummary[]);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Nao foi possivel carregar as conversas.");
+      setError(error instanceof Error ? error.message : "Não foi possível carregar as conversas.");
     }
   }
 
@@ -94,7 +112,7 @@ export function FinanceChat() {
       setError(null);
       setIsConversationPanelOpen(false);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Nao foi possivel abrir a conversa.");
+      setError(error instanceof Error ? error.message : "Não foi possível abrir a conversa.");
     }
   }
 
@@ -107,7 +125,7 @@ export function FinanceChat() {
       if (conversationId === id) startNewConversation();
       await refreshConversations();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Nao foi possivel excluir a conversa.");
+      setError(error instanceof Error ? error.message : "Não foi possível excluir a conversa.");
     }
   }
 
@@ -148,7 +166,7 @@ export function FinanceChat() {
         }
       ]);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Nao foi possivel falar com a API. Confirme se o backend esta em execucao.");
+      setError(error instanceof Error ? error.message : "Não foi possível falar com a API. Confirme se o backend está em execução.");
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -171,7 +189,7 @@ export function FinanceChat() {
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark"><Activity size={18} /></div>
+          <div className="brand-mark"><Bot size={18} /></div>
           <span>MNC Finance</span>
         </div>
 
@@ -186,11 +204,15 @@ export function FinanceChat() {
         </div>
 
         <div className="sidebar-section">
-          <p className="sidebar-label">Especialistas</p>
+          <p className="sidebar-label">Como o MNC responde</p>
+          <p className="sidebar-context">O agente mestre aciona especialistas automaticamente.</p>
           <div className="agent-list">
-            <div><span className="agent-dot agent-dot--green" />Mercado</div>
-            <div><span className="agent-dot agent-dot--cyan" />Conhecimento</div>
-            <div><span className="agent-dot agent-dot--amber" />Graficos</div>
+            {SPECIALISTS.map((specialist) => (
+              <div className="agent-item" key={specialist.name}>
+                <span className="agent-item__name"><i className={`agent-dot ${specialist.dot}`} />{specialist.name}</span>
+                <p>{specialist.description}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -203,14 +225,33 @@ export function FinanceChat() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">ANALISE FINANCEIRA</p>
+            <p className="eyebrow">ANÁLISE FINANCEIRA</p>
             <h1>Conversa com o mercado</h1>
           </div>
           <div className="topbar-actions">
+            <button className="info-toggle" type="button" title="Sobre o chatbot" aria-label="Sobre o chatbot" onClick={() => setIsInfoOpen(true)}><Info size={18} /></button>
             <button className="mobile-history-toggle" type="button" title="Conversas" aria-label="Conversas" onClick={() => setIsConversationPanelOpen(true)}><History size={18} /></button>
-            <div className="status"><span />Sistema ativo</div>
           </div>
         </header>
+
+        {isInfoOpen && (
+          <section className="info-modal" role="dialog" aria-modal="true" aria-labelledby="info-title">
+            <div className="info-modal__content">
+              <div className="info-modal__header">
+                <h2 id="info-title">Sobre o MNC Finance</h2>
+                <button type="button" title="Fechar informações" aria-label="Fechar informações" onClick={() => setIsInfoOpen(false)}><X size={18} /></button>
+              </div>
+              <p>O agente mestre coordena especialistas para responder perguntas financeiras.</p>
+              <dl>
+                <div><dt>Mercado</dt><dd>Cotações, indicadores e dividendos via yfinance.</dd></div>
+                <div><dt>Conhecimento</dt><dd>Conceitos recuperados da base local de documentos.</dd></div>
+                <div><dt>Gráficos</dt><dd>Históricos e comparações de preços em Plotly.</dd></div>
+              </dl>
+              <p className="info-modal__scope">Este chat aceita apenas dúvidas sobre finanças, investimentos, mercado e economia.</p>
+              <p className="info-modal__notice">Conteúdo educacional. Não constitui recomendação de investimento.</p>
+            </div>
+          </section>
+        )}
 
         {isConversationPanelOpen && (
           <section className="mobile-conversation-panel" aria-label="Conversas salvas">
@@ -226,14 +267,14 @@ export function FinanceChat() {
           </section>
         )}
 
-        <section className="chat-stream" aria-live="polite">
+        <section className="chat-stream" aria-live="polite" ref={chatStreamRef}>
           {messages.map((item) => (
             <article className={`message message--${item.role}`} key={item.id}>
               <div className="message-avatar">
                 {item.role === "assistant" ? <Bot size={18} /> : <ArrowUpRight size={18} />}
               </div>
               <div className="message-body">
-                <div className="message-role">{item.role === "assistant" ? "MNC Finance" : "Voce"}</div>
+                <div className="message-role">{item.role === "assistant" ? "MNC Finance" : "Você"}</div>
                 {item.role === "assistant" ? (
                   <div className="markdown"><ReactMarkdown>{normalizeMarkdown(item.content)}</ReactMarkdown></div>
                 ) : (
@@ -241,7 +282,7 @@ export function FinanceChat() {
                 )}
                 {item.tools && item.tools.length > 0 && (
                   <div className="tool-list">
-                    {item.tools.map((tool) => <span className="tool-badge" key={tool}>{labelForTool(tool)}</span>)}
+                    {item.tools.map((tool) => <span className={toolBadgeClass(tool)} key={tool}>{labelForTool(tool)}</span>)}
                   </div>
                 )}
                 {item.charts?.map((chart, index) => <PriceChart chart={chart} key={`${chart.symbol}-${index}`} />)}
@@ -269,7 +310,7 @@ export function FinanceChat() {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Pergunte sobre acoes, indicadores ou mercado..."
+              placeholder="Pergunte sobre ações, indicadores ou mercado..."
               rows={1}
               aria-label="Mensagem"
             />
@@ -277,7 +318,7 @@ export function FinanceChat() {
               <Send size={18} />
             </button>
           </form>
-          <p className="disclaimer"><ChartNoAxesCombined size={14} />Conteudo educacional. Nao constitui recomendacao de investimento.</p>
+          <p className="disclaimer"><ChartNoAxesCombined size={14} />Conteúdo educacional. Não constitui recomendação de investimento.</p>
         </div>
       </section>
     </main>

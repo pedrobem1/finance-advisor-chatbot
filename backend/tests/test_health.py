@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from agents.exceptions import MaxTurnsExceeded, ModelTimeoutError
+from agents import GuardrailFunctionOutput, InputGuardrailResult
+from agents.exceptions import InputGuardrailTripwireTriggered, MaxTurnsExceeded, ModelTimeoutError
 from fastapi.testclient import TestClient
 
 from app.agents.master_agent import MasterAgentResponse
@@ -167,5 +168,31 @@ def test_chat_returns_friendly_agent_limit_error(monkeypatch) -> None:
         "detail": {
             "code": "agent_limit_reached",
             "message": "Nao consegui concluir essa analise agora. Tente reformular a pergunta.",
+        }
+    }
+
+
+def test_chat_returns_scope_error(monkeypatch) -> None:
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
+        from app.agents.scope_guardrail import finance_scope_guardrail
+
+        raise InputGuardrailTripwireTriggered(
+            InputGuardrailResult(
+                guardrail=finance_scope_guardrail,
+                output=GuardrailFunctionOutput(output_info=None, tripwire_triggered=True),
+            )
+        )
+
+    monkeypatch.setattr("app.api.routes.chat.run_master_agent", fake_run_master_agent)
+
+    response = client.post("/chat", json={"message": "Gere um codigo DFS em Python"})
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": {
+            "code": "out_of_scope",
+            "message": "Posso ajudar com finanças, investimentos, mercado e economia.",
         }
     }

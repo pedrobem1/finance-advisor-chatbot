@@ -8,7 +8,7 @@ const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
 export function PriceChart({ chart }: { chart: ChartArtifact }) {
   return (
-    <section className="chart-artifact" aria-label={`Grafico de ${chart.symbol}`}>
+    <section className="chart-artifact" aria-label={`Gráfico de ${chart.symbol}`}>
       <div className="chart-artifact__header">
         <span>{chart.symbol}</span>
         <span>{chart.period}</span>

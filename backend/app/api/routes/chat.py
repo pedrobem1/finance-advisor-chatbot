@@ -1,7 +1,12 @@
 import logging
 from uuid import uuid4
 
-from agents.exceptions import AgentsException, MaxTurnsExceeded, ModelTimeoutError
+from agents.exceptions import (
+    AgentsException,
+    InputGuardrailTripwireTriggered,
+    MaxTurnsExceeded,
+    ModelTimeoutError,
+)
 from fastapi import APIRouter, HTTPException
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAIError, RateLimitError
 
@@ -29,6 +34,14 @@ def chat_error_response(error: Exception) -> HTTPException:
             detail={
                 "code": "ai_configuration_error",
                 "message": "O servico de IA nao esta configurado corretamente.",
+            },
+        )
+    if isinstance(error, InputGuardrailTripwireTriggered):
+        return HTTPException(
+            status_code=400,
+            detail={
+                "code": "out_of_scope",
+                "message": "Posso ajudar com finanças, investimentos, mercado e economia.",
             },
         )
     if isinstance(error, RateLimitError):
@@ -113,6 +126,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         OpenAIError,
         RAGError,
         ConversationStoreError,
+        InputGuardrailTripwireTriggered,
     ) as error:
         raise chat_error_response(error) from error
 

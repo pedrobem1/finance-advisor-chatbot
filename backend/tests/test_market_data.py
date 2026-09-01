@@ -4,7 +4,17 @@ from app.tools import market_data
 
 
 class FakeTicker:
-    info = {"longName": "Empresa Teste", "currency": "BRL"}
+    info = {
+        "longName": "Empresa Teste",
+        "currency": "BRL",
+        "marketCap": 1_000_000.0,
+        "trailingPE": 8.5,
+        "priceToBook": 1.2,
+        "dividendYield": 0.08,
+        "trailingAnnualDividendRate": 1.1,
+        "lastDividendValue": 0.3,
+        "exDividendDate": 1_788_220_800,
+    }
 
     def history(self, **kwargs):
         return pd.DataFrame({"Close": [10.0, 10.5]})
@@ -21,6 +31,38 @@ def test_get_ticker_summary_returns_price_and_change(monkeypatch) -> None:
     assert result.current_price == 10.5
     assert result.previous_close == 10.0
     assert result.change_percent == 5.0
+    assert result.market_cap == 1_000_000.0
+    assert result.trailing_pe == 8.5
+    assert result.price_to_book == 1.2
+    assert result.dividend_yield_percent == 8.0
+    assert result.trailing_annual_dividend_rate == 1.1
+    assert result.last_dividend_value == 0.3
+    assert result.ex_dividend_date == "2026-09-01"
+    assert result.dividends_last_12_months == 0
+    assert result.dividend_history == []
+
+
+def test_get_ticker_summary_returns_dividend_history_for_last_12_months(monkeypatch) -> None:
+    class DividendHistoryTicker:
+        info = {}
+
+        def history(self, **kwargs):
+            if kwargs["period"] == "1y":
+                return pd.DataFrame(
+                    {"Close": [10.0, 10.5], "Dividends": [0.25, 0.35]},
+                    index=pd.to_datetime(["2026-03-15", "2026-08-15"]),
+                )
+            return pd.DataFrame({"Close": [10.0, 10.5]})
+
+    monkeypatch.setattr(market_data.yf, "Ticker", lambda symbol: DividendHistoryTicker())
+
+    result = market_data.get_ticker_summary("TESTE")
+
+    assert result.dividends_last_12_months == 0.6
+    assert [item.model_dump() for item in result.dividend_history] == [
+        {"date": "2026-03-15", "amount": 0.25},
+        {"date": "2026-08-15", "amount": 0.35},
+    ]
 
 
 def test_normalize_symbol_adds_b3_suffix() -> None:

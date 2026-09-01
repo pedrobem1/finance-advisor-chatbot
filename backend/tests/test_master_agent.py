@@ -4,7 +4,7 @@ from uuid import UUID
 
 from agents import SQLiteSession
 from app.agents import master_agent
-from app.agents.master_agent import MasterAgentOutput, extract_tools_used
+from app.agents.master_agent import MasterAgentOutput, extract_tools_used, master_instructions
 
 
 def test_extract_tools_used_preserves_unique_tool_order() -> None:
@@ -21,6 +21,20 @@ def test_extract_tools_used_preserves_unique_tool_order() -> None:
         "rag_specialist",
         "finance_specialist",
     ]
+
+
+def test_master_instructions_include_current_brazil_datetime(monkeypatch) -> None:
+    class FixedDatetime:
+        def strftime(self, _: str) -> str:
+            return "01/09/2026 10:30"
+
+    monkeypatch.setattr(master_agent, "get_current_brazil_datetime", lambda: FixedDatetime())
+
+    instructions = master_instructions(None, None)
+
+    assert "01/09/2026 10:30" in instructions
+    assert "nao representa dados futuros" in instructions
+    assert "nao consegue ver imagens, abrir anexos" in instructions
 
 
 def test_run_master_agent_uses_sqlite_session(monkeypatch, tmp_path) -> None:
