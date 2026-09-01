@@ -44,6 +44,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         captured_conversation_ids.append(conversation_id)
         return MasterAgentResponse(
             answer=f"Resposta simulada para: {message}",
+            suggested_questions=["Pergunta um", "Pergunta dois", "Pergunta tres"],
             tools_used=["finance_specialist"],
             charts=[],
         )
@@ -65,6 +66,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         "answer": "Resposta simulada para: O que e uma acao?",
         "agent": "master_agent",
         "conversation_id": str(captured_conversation_ids[0]),
+        "suggested_questions": ["Pergunta um", "Pergunta dois", "Pergunta tres"],
         "tools_used": ["finance_specialist"],
         "charts": [],
     }
@@ -79,7 +81,12 @@ def test_chat_reuses_conversation_id(monkeypatch) -> None:
 
     async def fake_run_master_agent(message: str, received_id: UUID) -> MasterAgentResponse:
         captured_conversation_ids.append(received_id)
-        return MasterAgentResponse(answer="Resposta simulada", tools_used=[], charts=[])
+        return MasterAgentResponse(
+            answer="Resposta simulada",
+            suggested_questions=["Pergunta um", "Pergunta dois", "Pergunta tres"],
+            tools_used=[],
+            charts=[],
+        )
 
     monkeypatch.setattr(
         "app.api.routes.chat.run_master_agent",

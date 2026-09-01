@@ -120,6 +120,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         answer=result.answer,
         agent="master_agent",
         conversation_id=conversation_id,
+        suggested_questions=result.suggested_questions,
         tools_used=result.tools_used,
         charts=result.charts,
     )
