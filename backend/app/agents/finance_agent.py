@@ -25,7 +25,9 @@ finance_agent = Agent[ChatRunContext](
         "Nao ofereca recomendacoes personalizadas de compra ou venda. "
         "Quando nao tiver dados suficientes ou atualizados, deixe isso claro. "
         "Use a tool get_market_summary sempre que considerar que dados atuais "
-        "ou especificos de um ticker podem tornar sua resposta mais precisa. "
+        "ou especificos de um ticker, inclusive indicadores e dividendos, possam "
+        "tornar sua resposta mais precisa. Para perguntas sobre proventos, use o "
+        "historico de dividendos dos ultimos 12 meses retornado pela tool. "
         "Voce nao precisa usar a tool em perguntas puramente conceituais."
     ),
     tools=[get_market_summary],
