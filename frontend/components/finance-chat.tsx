@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Activity, ArrowUpRight, Bot, ChartNoAxesCombined, Plus, Send, Sparkles } from "lucide-react";
+import { Activity, ArrowUpRight, Bot, ChartNoAxesCombined, History, Plus, Send, Sparkles, X } from "lucide-react";
 
+import { ConversationList } from "./conversation-list";
 import { PriceChart } from "./price-chart";
-import type { ChatApiResponse, ChatMessage } from "./types";
+import type { ChatApiErrorResponse, ChatApiResponse, ChatMessage, ConversationDetail, ConversationSummary } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -34,12 +35,78 @@ function labelForTool(tool: string) {
   return labels[tool] ?? tool;
 }
 
+async function getApiErrorMessage(response: Response) {
+  const fallback = "Nao foi possivel concluir sua pergunta agora. Tente novamente em instantes.";
+
+  try {
+    const payload = (await response.json()) as ChatApiErrorResponse;
+    if (typeof payload.detail === "string") return payload.detail;
+    return payload.detail?.message ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function FinanceChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
   const [message, setMessage] = useState("");
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    void refreshConversations();
+  }, []);
+
+  async function refreshConversations() {
+    try {
+      const response = await fetch(`${API_URL}/conversations`);
+      if (!response.ok) throw new Error(await getApiErrorMessage(response));
+      setConversations((await response.json()) as ConversationSummary[]);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nao foi possivel carregar as conversas.");
+    }
+  }
+
+  function startNewConversation() {
+    setMessages([INITIAL_MESSAGE]);
+    setConversationId(null);
+    setError(null);
+    setIsConversationPanelOpen(false);
+    inputRef.current?.focus();
+  }
+
+  async function openConversation(id: string) {
+    if (isLoading) return;
+
+    try {
+      const response = await fetch(`${API_URL}/conversations/${id}`);
+      if (!response.ok) throw new Error(await getApiErrorMessage(response));
+      const conversation = (await response.json()) as ConversationDetail;
+      setMessages(conversation.messages);
+      setConversationId(conversation.conversation_id);
+      setError(null);
+      setIsConversationPanelOpen(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nao foi possivel abrir a conversa.");
+    }
+  }
+
+  async function deleteConversation(id: string) {
+    if (isLoading || !window.confirm("Excluir esta conversa?")) return;
+
+    try {
+      const response = await fetch(`${API_URL}/conversations/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(await getApiErrorMessage(response));
+      if (conversationId === id) startNewConversation();
+      await refreshConversations();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nao foi possivel excluir a conversa.");
+    }
+  }
 
   async function submitMessage(content = message) {
     const question = content.trim();
@@ -59,11 +126,13 @@ export function FinanceChat() {
       const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question })
+        body: JSON.stringify({ message: question, conversation_id: conversationId })
       });
-      if (!response.ok) throw new Error("A API nao respondeu como esperado.");
+      if (!response.ok) throw new Error(await getApiErrorMessage(response));
 
       const result = (await response.json()) as ChatApiResponse;
+      setConversationId(result.conversation_id);
+      await refreshConversations();
       setMessages((current) => [
         ...current,
         {
@@ -74,8 +143,8 @@ export function FinanceChat() {
           charts: result.charts
         }
       ]);
-    } catch {
-      setError("Nao foi possivel falar com a API. Confirme se o backend esta em execucao.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nao foi possivel falar com a API. Confirme se o backend esta em execucao.");
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -102,10 +171,15 @@ export function FinanceChat() {
           <span>MNC Finance</span>
         </div>
 
-        <button className="new-chat" type="button" title="Nova conversa" onClick={() => setMessages([INITIAL_MESSAGE])}>
+        <button className="new-chat" type="button" title="Nova conversa" onClick={startNewConversation}>
           <Plus size={18} />
           <span>Nova conversa</span>
         </button>
+
+        <div className="sidebar-section sidebar-section--conversations">
+          <p className="sidebar-label">Conversas</p>
+          <ConversationList activeConversationId={conversationId} conversations={conversations} disabled={isLoading} onOpen={(id) => void openConversation(id)} onDelete={(id) => void deleteConversation(id)} />
+        </div>
 
         <div className="sidebar-section">
           <p className="sidebar-label">Especialistas</p>
@@ -128,8 +202,25 @@ export function FinanceChat() {
             <p className="eyebrow">ANALISE FINANCEIRA</p>
             <h1>Conversa com o mercado</h1>
           </div>
-          <div className="status"><span />Sistema ativo</div>
+          <div className="topbar-actions">
+            <button className="mobile-history-toggle" type="button" title="Conversas" aria-label="Conversas" onClick={() => setIsConversationPanelOpen(true)}><History size={18} /></button>
+            <div className="status"><span />Sistema ativo</div>
+          </div>
         </header>
+
+        {isConversationPanelOpen && (
+          <section className="mobile-conversation-panel" aria-label="Conversas salvas">
+            <div className="mobile-conversation-panel__header">
+              <span>Conversas</span>
+              <button type="button" title="Fechar conversas" aria-label="Fechar conversas" onClick={() => setIsConversationPanelOpen(false)}><X size={18} /></button>
+            </div>
+            <button className="new-chat mobile-new-chat" type="button" onClick={startNewConversation}>
+              <Plus size={18} />
+              <span>Nova conversa</span>
+            </button>
+            <ConversationList activeConversationId={conversationId} conversations={conversations} disabled={isLoading} onOpen={(id) => void openConversation(id)} onDelete={(id) => void deleteConversation(id)} />
+          </section>
+        )}
 
         <section className="chat-stream" aria-live="polite">
           {messages.map((item) => (

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     rag_embedding_model: str = "text-embedding-3-small"
     rag_knowledge_directory: Path = PROJECT_DIRECTORY / "knowledge"
     rag_index_directory: Path = BACKEND_DIRECTORY / "data" / "rag"
+    conversation_database_path: Path = BACKEND_DIRECTORY / "data" / "conversations.db"
+    conversation_history_limit: int = 40
 
     model_config = SettingsConfigDict(
         env_file=".env",

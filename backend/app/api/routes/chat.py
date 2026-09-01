@@ -1,10 +1,12 @@
 import logging
+from uuid import uuid4
 
 from agents.exceptions import AgentsException, MaxTurnsExceeded, ModelTimeoutError
 from fastapi import APIRouter, HTTPException
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAIError, RateLimitError
 
 from app.agents.master_agent import run_master_agent
+from app.conversations.repository import ConversationStoreError, get_conversation_store
 from app.core.config import get_settings
 from app.rag.retriever import RAGError
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -69,6 +71,14 @@ def chat_error_response(error: Exception) -> HTTPException:
                 "message": "A base de conhecimento esta indisponivel no momento. Tente novamente em instantes.",
             },
         )
+    if isinstance(error, ConversationStoreError):
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": "conversation_store_unavailable",
+                "message": "Nao foi possivel salvar a conversa. Tente novamente em instantes.",
+            },
+        )
     return HTTPException(
         status_code=502,
         detail={
@@ -83,8 +93,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
     if not get_settings().openai_api_key:
         raise chat_error_response(AIConfigurationError())
 
+    conversation_id = request.conversation_id or uuid4()
+
     try:
-        result = await run_master_agent(request.message)
+        result = await run_master_agent(request.message, conversation_id)
+        get_conversation_store().save_exchange(
+            conversation_id=conversation_id,
+            user_message=request.message,
+            answer=result.answer,
+            tools_used=result.tools_used,
+            charts=result.charts,
+        )
     except (
         AgentsException,
         APIConnectionError,
@@ -93,12 +112,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
         MarketDataError,
         OpenAIError,
         RAGError,
+        ConversationStoreError,
     ) as error:
         raise chat_error_response(error) from error
 
     return ChatResponse(
         answer=result.answer,
         agent="master_agent",
+        conversation_id=conversation_id,
         tools_used=result.tools_used,
         charts=result.charts,
     )

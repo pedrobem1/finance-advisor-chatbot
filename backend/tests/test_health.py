@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from agents.exceptions import MaxTurnsExceeded, ModelTimeoutError
 from fastapi.testclient import TestClient
 
@@ -6,6 +8,21 @@ from app.main import app
 
 
 client = TestClient(app)
+
+
+class FakeConversationStore:
+    def __init__(self) -> None:
+        self.exchanges: list[dict] = []
+
+    def save_exchange(self, **exchange) -> None:
+        self.exchanges.append(exchange)
+
+
+def mock_openai_key(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.chat.get_settings",
+        lambda: type("Settings", (), {"openai_api_key": "test-key"})(),
+    )
 
 
 def test_health_check() -> None:
@@ -19,7 +36,12 @@ def test_health_check() -> None:
 
 
 def test_chat_returns_agent_answer(monkeypatch) -> None:
-    async def fake_run_master_agent(message: str) -> MasterAgentResponse:
+    captured_conversation_ids: list[UUID] = []
+    store = FakeConversationStore()
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
+        captured_conversation_ids.append(conversation_id)
         return MasterAgentResponse(
             answer=f"Resposta simulada para: {message}",
             tools_used=["finance_specialist"],
@@ -30,6 +52,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         "app.api.routes.chat.run_master_agent",
         fake_run_master_agent,
     )
+    monkeypatch.setattr("app.api.routes.chat.get_conversation_store", lambda: store)
 
     response = client.post(
         "/chat",
@@ -37,12 +60,41 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {
+    body = response.json()
+    assert body == {
         "answer": "Resposta simulada para: O que e uma acao?",
         "agent": "master_agent",
+        "conversation_id": str(captured_conversation_ids[0]),
         "tools_used": ["finance_specialist"],
         "charts": [],
     }
+    assert store.exchanges[0]["user_message"] == "O que e uma acao?"
+
+
+def test_chat_reuses_conversation_id(monkeypatch) -> None:
+    conversation_id = UUID("a2eb2b69-9a4b-4e76-9090-5936f73bc117")
+    captured_conversation_ids: list[UUID] = []
+    store = FakeConversationStore()
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, received_id: UUID) -> MasterAgentResponse:
+        captured_conversation_ids.append(received_id)
+        return MasterAgentResponse(answer="Resposta simulada", tools_used=[], charts=[])
+
+    monkeypatch.setattr(
+        "app.api.routes.chat.run_master_agent",
+        fake_run_master_agent,
+    )
+    monkeypatch.setattr("app.api.routes.chat.get_conversation_store", lambda: store)
+
+    response = client.post(
+        "/chat",
+        json={"message": "Compare com a VALE3", "conversation_id": str(conversation_id)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["conversation_id"] == str(conversation_id)
+    assert captured_conversation_ids == [conversation_id]
 
 
 def test_chat_rejects_empty_message() -> None:
@@ -69,7 +121,9 @@ def test_chat_returns_friendly_configuration_error(monkeypatch) -> None:
 
 
 def test_chat_returns_friendly_timeout_error(monkeypatch) -> None:
-    async def fake_run_master_agent(message: str) -> MasterAgentResponse:
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
         raise ModelTimeoutError(30)
 
     monkeypatch.setattr(
@@ -89,7 +143,9 @@ def test_chat_returns_friendly_timeout_error(monkeypatch) -> None:
 
 
 def test_chat_returns_friendly_agent_limit_error(monkeypatch) -> None:
-    async def fake_run_master_agent(message: str) -> MasterAgentResponse:
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
         raise MaxTurnsExceeded("limit reached")
 
     monkeypatch.setattr(

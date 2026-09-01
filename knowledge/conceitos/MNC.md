@@ -1,0 +1,1 @@
+O nome MNC finance vem de uma brincadeira do criador do chatbot com um amigo. Eles tiveram a ideia do chatbot juntos e prometeram que se a ideia escalasse eles teriam lanches do Madeiro em seus casamentos com suas namoradas. Madeiro No Casamento (MNC)
