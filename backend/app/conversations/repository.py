@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.config import get_settings
 from app.schemas.chart import ChartArtifact
 from app.schemas.conversation import ConversationDetail, ConversationMessage, ConversationSummary
+from app.schemas.source import WebSource
 
 
 class ConversationStoreError(RuntimeError):
@@ -25,15 +26,17 @@ class ConversationStore:
         answer: str,
         tools_used: list[str],
         charts: list[ChartArtifact],
+        sources: list[WebSource],
     ) -> None:
         title = self._make_title(user_message)
         messages = [
-            ("user", user_message, "[]", "[]"),
+            ("user", user_message, "[]", "[]", "[]"),
             (
                 "assistant",
                 answer,
                 json.dumps(tools_used, ensure_ascii=False),
                 json.dumps([chart.model_dump() for chart in charts], ensure_ascii=False),
+                json.dumps([source.model_dump() for source in sources], ensure_ascii=False),
             ),
         ]
 
@@ -49,8 +52,9 @@ class ConversationStore:
                 )
                 connection.executemany(
                     """
-                    INSERT INTO conversation_messages (conversation_id, role, content, tools_json, charts_json)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO conversation_messages
+                    (conversation_id, role, content, tools_json, charts_json, sources_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     [(str(conversation_id), *message) for message in messages],
                 )
@@ -96,7 +100,7 @@ class ConversationStore:
 
                 message_rows = connection.execute(
                     """
-                    SELECT id, role, content, tools_json, charts_json, created_at
+                    SELECT id, role, content, tools_json, charts_json, sources_json, created_at
                     FROM conversation_messages
                     WHERE conversation_id = ?
                     ORDER BY id ASC
@@ -118,6 +122,10 @@ class ConversationStore:
                         charts=[
                             ChartArtifact.model_validate(chart)
                             for chart in json.loads(message_row["charts_json"])
+                        ],
+                        sources=[
+                            WebSource.model_validate(source)
+                            for source in json.loads(message_row["sources_json"])
                         ],
                         created_at=message_row["created_at"],
                     )
@@ -169,6 +177,7 @@ class ConversationStore:
                 content TEXT NOT NULL,
                 tools_json TEXT NOT NULL,
                 charts_json TEXT NOT NULL,
+                sources_json TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -176,6 +185,14 @@ class ConversationStore:
             ON conversation_messages (conversation_id, id);
             """
         )
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(conversation_messages)").fetchall()
+        }
+        if "sources_json" not in columns:
+            connection.execute(
+                "ALTER TABLE conversation_messages ADD COLUMN sources_json TEXT NOT NULL DEFAULT '[]'"
+            )
 
     @staticmethod
     def _make_title(message: str) -> str:

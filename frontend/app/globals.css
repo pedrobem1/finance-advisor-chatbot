@@ -9,6 +9,7 @@
   --muted: #8d9aaa;
   --green: #50d890;
   --cyan: #5ec8df;
+  --blue: #5da9ff;
   --red: #ff7171;
   --amber: #f1c36a;
 }
@@ -61,9 +62,13 @@ button { cursor: pointer; }
 .agent-list { display: grid; gap: 11px; margin-top: 16px; color: #b8c3cf; font-size: 13px; }
 .agent-item { border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; }
 .agent-item__name { display: flex; align-items: center; gap: 9px; }
+.agent-item__info { width: 22px; height: 22px; display: grid; place-items: center; margin-left: auto; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.agent-item__info:hover { color: var(--blue); background: #152236; }
 .agent-item p { margin: 6px 0 0 16px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.agent-item p.agent-item__notice { color: var(--blue); }
 .agent-dot { width: 7px; height: 7px; border-radius: 50%; }
 .agent-dot--green { background: var(--green); }.agent-dot--cyan { background: var(--cyan); }.agent-dot--amber { background: var(--amber); }
+.agent-dot--blue { background: var(--blue); }
 .sidebar-footer { margin-top: auto; display: flex; gap: 8px; align-items: center; padding: 12px 8px 2px; color: var(--muted); font-size: 11px; }
 
 .workspace { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
@@ -100,7 +105,12 @@ button { cursor: pointer; }
 .tool-badge--green { color: var(--green); background: #102219; border: 1px solid #28533a; }
 .tool-badge--cyan { color: var(--cyan); background: #10232a; border: 1px solid #24505c; }
 .tool-badge--amber { color: var(--amber); background: #2a210f; border: 1px solid #685228; }
+.tool-badge--blue { color: var(--blue); background: #152236; border: 1px solid #2b5784; }
 .tool-badge--default { color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
+.source-list { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 14px; color: var(--muted); font-size: 11px; }
+.source-list > span { color: var(--muted); font-weight: 700; }
+.source-list a { max-width: 220px; overflow: hidden; color: var(--blue); border: 1px solid #2b5784; border-radius: 999px; padding: 4px 8px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.source-list a:hover { color: #9ac8ff; border-color: #5d9bdd; }
 
 .chart-artifact { margin-top: 18px; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--panel-strong); }
 .chart-artifact__header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line-soft); padding: 10px 13px; color: var(--muted); font-size: 11px; font-weight: 700; }

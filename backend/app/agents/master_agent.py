@@ -10,9 +10,11 @@ from app.agents.chart_agent import chart_agent
 from app.agents.finance_agent import finance_agent
 from app.agents.rag_agent import rag_agent
 from app.agents.scope_guardrail import finance_scope_guardrail
+from app.agents.web_agent import extract_web_research_output, web_agent
 from app.core.run_context import ChatRunContext
 from app.conversations.sessions import create_conversation_session
 from app.schemas.chart import ChartArtifact
+from app.schemas.source import WebSource
 
 
 class MasterAgentOutput(BaseModel):
@@ -33,16 +35,21 @@ def master_instructions(
         "da conversa e produza a resposta final para o usuario. "
         f"A data e hora atual no horario de Brasilia e {current_datetime}. "
         "Use essa data ao interpretar expressoes relativas, como hoje, ontem e "
-        "ultimos tres meses. "
+        "ultimos tres meses."
         "Nesta versao, voce recebe apenas mensagens de texto: nao consegue ver "
         "imagens, abrir anexos ou analisar arquivos enviados pelo usuario. Se for "
         "perguntado sobre uma imagem ou anexo, informe essa limitacao de forma "
-        "direta e nunca diga que viu ou analisou algo que nao recebeu. "
+        "direta e nunca diga que viu ou analisou algo que nao recebeu." \
+        "Use o "
+        "web_research_specialist para noticias, eventos de mercado, resultados "
+        "recentes de empresas ou para explicar movimentos de indices e ativos em um "
+        "periodo especifico. Nao use pesquisa web para definicoes atemporais ou para "
+        "uma cotacao, que devem usar os especialistas apropriados. "
         "Use o finance_specialist para dados de mercado ou analise de um ativo. "
         "Use o rag_specialist para definicoes, conceitos e explicacoes "
         "educacionais baseadas na base de conhecimento. Use o "
         "chart_specialist quando o usuario pedir um grafico, historico ou "
-        "evolucao de preco, inclusive comparacoes entre dois ativos. Combine o "
+        "evolucao de preco, inclusive comparacoes entre dois ativos.  Combine o "
         "resultado recebido com a pergunta do usuario e seja claro sobre limites e "
         "atualizacao dos dados. Nao ofereca recomendacoes personalizadas de compra "
         "ou venda. Ao finalizar, gere exatamente tres perguntas curtas de continuacao, "
@@ -80,6 +87,14 @@ master_agent = Agent[ChatRunContext](
                 "usuario pedir um grafico ou uma serie historica de um ticker."
             ),
         ),
+        web_agent.as_tool(
+            tool_name="web_research_specialist",
+            tool_description=(
+                "Especialista em pesquisa web financeira. Use para noticias, eventos "
+                "de mercado e fatos que possam ter mudado ou precisem de fontes atuais."
+            ),
+            custom_output_extractor=extract_web_research_output,
+        ),
     ],
 )
 
@@ -90,6 +105,7 @@ class MasterAgentResponse:
     suggested_questions: list[str]
     tools_used: list[str]
     charts: list[ChartArtifact]
+    sources: list[WebSource]
 
 
 def extract_tools_used(run_result) -> list[str]:
@@ -117,4 +133,5 @@ async def run_master_agent(message: str, conversation_id: UUID) -> MasterAgentRe
         suggested_questions=result.final_output.suggested_questions,
         tools_used=extract_tools_used(result),
         charts=context.charts,
+        sources=context.sources,
     )
