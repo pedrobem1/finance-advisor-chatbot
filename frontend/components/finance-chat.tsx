@@ -10,6 +10,7 @@ import { PriceChart } from "./price-chart";
 import type { ChatApiErrorResponse, ChatApiResponse, ChatMessage, ConversationDetail, ConversationSummary } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const BROWSER_ID_STORAGE_KEY = "mnc-finance-browser-id";
 
 const EXAMPLE_PROMPTS = [
   "Explique o que é um ETF",
@@ -54,6 +55,15 @@ function toolBadgeClass(tool: string) {
   return `tool-badge tool-badge--${TOOL_METADATA[tool]?.tone ?? "default"}`;
 }
 
+function getOrCreateBrowserId() {
+  const existingId = window.localStorage.getItem(BROWSER_ID_STORAGE_KEY);
+  if (existingId) return existingId;
+
+  const browserId = crypto.randomUUID();
+  window.localStorage.setItem(BROWSER_ID_STORAGE_KEY, browserId);
+  return browserId;
+}
+
 function formatMessageTime(createdAt?: string) {
   if (!createdAt) return null;
 
@@ -96,6 +106,7 @@ export function FinanceChat() {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatStreamRef = useRef<HTMLElement>(null);
+  const browserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void refreshConversations();
@@ -108,7 +119,7 @@ export function FinanceChat() {
 
   async function refreshConversations() {
     try {
-      const response = await fetch(`${API_URL}/conversations`);
+      const response = await fetch(`${API_URL}/conversations`, { headers: browserHeaders() });
       if (!response.ok) throw new Error(await getApiErrorMessage(response));
       setConversations((await response.json()) as ConversationSummary[]);
     } catch (error) {
@@ -129,7 +140,7 @@ export function FinanceChat() {
     if (isLoading) return;
 
     try {
-      const response = await fetch(`${API_URL}/conversations/${id}`);
+      const response = await fetch(`${API_URL}/conversations/${id}`, { headers: browserHeaders() });
       if (!response.ok) throw new Error(await getApiErrorMessage(response));
       const conversation = (await response.json()) as ConversationDetail;
       setMessages(conversation.messages);
@@ -146,7 +157,10 @@ export function FinanceChat() {
     if (isLoading || !window.confirm("Excluir esta conversa?")) return;
 
     try {
-      const response = await fetch(`${API_URL}/conversations/${id}`, { method: "DELETE" });
+      const response = await fetch(`${API_URL}/conversations/${id}`, {
+        method: "DELETE",
+        headers: browserHeaders()
+      });
       if (!response.ok) throw new Error(await getApiErrorMessage(response));
       if (conversationId === id) startNewConversation();
       await refreshConversations();
@@ -173,7 +187,7 @@ export function FinanceChat() {
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...browserHeaders() },
         body: JSON.stringify({ message: question, conversation_id: conversationId })
       });
       if (!response.ok) throw new Error(await getApiErrorMessage(response));
@@ -205,6 +219,12 @@ export function FinanceChat() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void submitMessage();
+  }
+
+  function browserHeaders() {
+    const browserId = browserIdRef.current ?? getOrCreateBrowserId();
+    browserIdRef.current = browserId;
+    return { "X-Client-Id": browserId };
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

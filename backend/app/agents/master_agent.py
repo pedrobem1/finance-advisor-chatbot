@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from agents import Agent, RunContextWrapper, Runner
+from agents import Agent, RunContextWrapper, Runner, set_default_openai_key
 from pydantic import BaseModel, Field
 
 from app.agents.chart_agent import chart_agent
@@ -12,6 +12,7 @@ from app.agents.rag_agent import rag_agent
 from app.agents.scope_guardrail import finance_scope_guardrail
 from app.agents.web_agent import extract_web_research_output, web_agent
 from app.core.run_context import ChatRunContext
+from app.core.config import get_openai_api_key
 from app.conversations.sessions import create_conversation_session
 from app.schemas.chart import ChartArtifact
 from app.schemas.source import WebSource
@@ -122,6 +123,10 @@ def extract_tools_used(run_result) -> list[str]:
 
 
 async def run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
+    openai_api_key = get_openai_api_key()
+    if not openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY nao configurada.")
+    set_default_openai_key(openai_api_key)
     session = create_conversation_session(conversation_id)
     context = ChatRunContext()
     try:

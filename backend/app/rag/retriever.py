@@ -3,7 +3,7 @@ from pathlib import Path
 
 from openai import OpenAI, OpenAIError
 
-from app.core.config import get_settings
+from app.core.config import get_openai_api_key, get_settings
 from app.rag.documents import DocumentLoadError, chunk_documents, load_source_documents
 from app.rag.vector_store import (
     SearchResult,
@@ -31,10 +31,11 @@ class KnowledgeRetriever:
         index_directory: Path | None = None,
     ) -> None:
         settings = get_settings()
-        if client is None and not settings.openai_api_key:
+        openai_api_key = get_openai_api_key()
+        if client is None and not openai_api_key:
             raise RAGError("OPENAI_API_KEY nao configurada para gerar embeddings.")
 
-        self.client = client or OpenAI(api_key=settings.openai_api_key)
+        self.client = client or OpenAI(api_key=openai_api_key)
         self.embedding_model = embedding_model or settings.rag_embedding_model
         self.knowledge_directory = knowledge_directory or settings.rag_knowledge_directory
         self.index_directory = index_directory or settings.rag_index_directory

@@ -35,7 +35,8 @@ def test_master_instructions_include_current_brazil_datetime(monkeypatch) -> Non
     instructions = master_instructions(None, None)
 
     assert "01/09/2026 10:30" in instructions
-    assert "nao representa dados futuros" in instructions
+    assert "horario atual como referencia temporal" in instructions
+    assert "nao representa dados futuros" not in instructions
     assert "nao consegue ver imagens, abrir anexos" in instructions
     assert "web_research_specialist" in instructions
 
@@ -63,6 +64,7 @@ def test_run_master_agent_uses_sqlite_session(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(master_agent, "create_conversation_session", fake_create_session)
     monkeypatch.setattr(master_agent.Runner, "run", fake_runner_run)
+    monkeypatch.setattr(master_agent, "get_openai_api_key", lambda: "test-key")
 
     conversation_id = UUID("a2eb2b69-9a4b-4e76-9090-5936f73bc117")
     result = asyncio.run(master_agent.run_master_agent("Ola", conversation_id))

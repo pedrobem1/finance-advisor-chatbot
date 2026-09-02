@@ -9,7 +9,9 @@ from app.main import app
 from app.schemas.source import WebSource
 
 
-client = TestClient(app)
+CLIENT_ID = UUID("054b7140-516a-456c-a5f6-3cc2f2a0a9a5")
+OTHER_CLIENT_ID = UUID("a4e6aa9e-bf42-48f8-930d-8d94a6f38814")
+client = TestClient(app, headers={"X-Client-Id": str(CLIENT_ID)})
 
 
 def test_conversation_store_migrates_existing_database_for_sources(tmp_path) -> None:
@@ -30,7 +32,7 @@ def test_conversation_store_migrates_existing_database_for_sources(tmp_path) -> 
         )
 
     store = ConversationStore(database_path)
-    store.list_conversations()
+    store.list_conversations(CLIENT_ID)
 
     with sqlite3.connect(database_path) as connection:
         columns = {
@@ -45,6 +47,7 @@ def test_conversation_store_saves_and_loads_exchanges(tmp_path) -> None:
     conversation_id = UUID("a2eb2b69-9a4b-4e76-9090-5936f73bc117")
 
     store.save_exchange(
+        client_id=CLIENT_ID,
         conversation_id=conversation_id,
         user_message="Explique o P/L da PETR4",
         answer="P/L compara preco e lucro.",
@@ -53,8 +56,8 @@ def test_conversation_store_saves_and_loads_exchanges(tmp_path) -> None:
         sources=[WebSource(url="https://b3.com.br/noticia", domain="b3.com.br")],
     )
 
-    summaries = store.list_conversations()
-    detail = store.get_conversation(conversation_id)
+    summaries = store.list_conversations(CLIENT_ID)
+    detail = store.get_conversation(CLIENT_ID, conversation_id)
 
     assert summaries[0].conversation_id == conversation_id
     assert summaries[0].title == "Explique o P/L da PETR4"
@@ -62,12 +65,15 @@ def test_conversation_store_saves_and_loads_exchanges(tmp_path) -> None:
     assert [message.role for message in detail.messages] == ["user", "assistant"]
     assert detail.messages[1].tools == ["finance_specialist"]
     assert detail.messages[1].sources[0].domain == "b3.com.br"
+    assert store.list_conversations(OTHER_CLIENT_ID) == []
+    assert store.get_conversation(OTHER_CLIENT_ID, conversation_id) is None
 
 
 def test_conversation_routes_list_open_and_delete(monkeypatch, tmp_path) -> None:
     store = ConversationStore(tmp_path / "conversations.db")
     conversation_id = UUID("a2eb2b69-9a4b-4e76-9090-5936f73bc117")
     store.save_exchange(
+        client_id=CLIENT_ID,
         conversation_id=conversation_id,
         user_message="Fale sobre ETFs",
         answer="ETFs sao fundos negociados em bolsa.",
@@ -101,4 +107,4 @@ def test_conversation_routes_list_open_and_delete(monkeypatch, tmp_path) -> None
     assert delete_response.status_code == 204
     assert session.cleared is True
     assert session.closed is True
-    assert store.get_conversation(conversation_id) is None
+    assert store.get_conversation(CLIENT_ID, conversation_id) is None

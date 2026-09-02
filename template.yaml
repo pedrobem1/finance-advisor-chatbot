@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless backend for MNC Finance.
+
+Parameters:
+  FrontendOrigin:
+    Type: String
+    Default: http://localhost:3000
+    Description: Public origin of the MNC Finance frontend.
+  ImageUri:
+    Type: String
+    Description: URI of the MNC Finance image in Amazon ECR.
+
+Globals:
+  Function:
+    Architectures:
+      - x86_64
+    MemorySize: 1536
+    Timeout: 30
+
+Resources:
+  MNCFinanceApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 2
+        ThrottlingRateLimit: 1
+      CorsConfiguration:
+        AllowHeaders:
+          - Content-Type
+          - X-Client-Id
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - OPTIONS
+        AllowOrigins:
+          - !Ref FrontendOrigin
+
+  MNCFinanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref ImageUri
+      Environment:
+        Variables:
+          ENVIRONMENT: production
+          CORS_ALLOWED_ORIGINS: !Ref FrontendOrigin
+          CONVERSATION_STORE: dynamodb
+          DYNAMODB_CONVERSATIONS_TABLE: !Ref MNCFinanceConversationsTable
+          OPENAI_API_KEY_PARAMETER: /mnc-finance/openai-api-key
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MNCFinanceConversationsTable
+        - SSMParameterReadPolicy:
+            ParameterName: mnc-finance/openai-api-key
+      Events:
+        ApiRequest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MNCFinanceApi
+            Path: /{proxy+}
+            Method: ANY
+
+  MNCFinanceConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: gsi1pk
+          AttributeType: S
+        - AttributeName: gsi1sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: conversations_by_updated_at
+          KeySchema:
+            - AttributeName: gsi1pk
+              KeyType: HASH
+            - AttributeName: gsi1sk
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  MNCFinanceFrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  MNCFinanceFrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-frontend"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  MNCFinanceFrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        Origins:
+          - Id: frontend-bucket
+            DomainName: !GetAtt MNCFinanceFrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt MNCFinanceFrontendOriginAccessControl.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: frontend-bucket
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  MNCFinanceFrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MNCFinanceFrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${MNCFinanceFrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${MNCFinanceFrontendDistribution}"
+
+Outputs:
+  ApiUrl:
+    Description: Public URL of the MNC Finance API.
+    Value: !Sub "https://${MNCFinanceApi}.execute-api.${AWS::Region}.amazonaws.com"
+  ConversationsTableName:
+    Description: DynamoDB table that stores conversations and agent sessions.
+    Value: !Ref MNCFinanceConversationsTable
+  FrontendBucketName:
+    Description: Private S3 bucket that stores the static frontend files.
+    Value: !Ref MNCFinanceFrontendBucket
+  FrontendUrl:
+    Description: Public HTTPS URL of the MNC Finance frontend.
+    Value: !Sub "https://${MNCFinanceFrontendDistribution.DomainName}"
