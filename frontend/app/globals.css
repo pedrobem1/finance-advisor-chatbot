@@ -41,11 +41,13 @@ button { cursor: pointer; }
   overflow-y: auto;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 24px; font-size: 15px; font-weight: 700; }
-.brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: var(--cyan); background: #10232a; border: 1px solid #24505c; border-radius: 6px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 24px; font-family: ui-rounded, "Arial Rounded MT Bold", "Avenir Next", Inter, ui-sans-serif, sans-serif; font-size: 15px; font-weight: 800; }
+.brand-mark { width: 30px; height: 30px; overflow: hidden; border: 1px solid #24505c; border-radius: 6px; background: #05080b; }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 
 .new-chat { width: 100%; display: flex; align-items: center; gap: 9px; color: var(--text); background: var(--panel-strong); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; text-align: left; font-size: 13px; }
-.new-chat:hover { border-color: #456074; background: #19212a; }
+.new-chat svg { color: var(--green); }
+.new-chat:hover { border-color: #3b7e56; background: #16211b; }
 
 .sidebar-section { margin-top: 34px; padding: 0 8px; }
 .sidebar-section--conversations { min-height: 0; }
@@ -128,7 +130,7 @@ button { cursor: pointer; }
 .composer:focus-within { border-color: #3c6374; }
 .composer textarea { resize: none; min-height: 38px; max-height: 150px; border: 0; outline: 0; color: var(--text); background: transparent; padding: 9px 8px; line-height: 1.35; }
 .composer textarea::placeholder { color: #657484; }
-.send-button { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--green); color: #0a160e; }.send-button:hover { background: #6be6a5; }.send-button:disabled { cursor: not-allowed; opacity: .38; }
+.send-button { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--cyan); color: #062024; }.send-button:hover { background: #83dbea; }.send-button:disabled { cursor: not-allowed; opacity: .38; }
 .disclaimer { width: min(920px, 100%); margin: 10px auto 0; display: flex; justify-content: center; gap: 6px; color: #6f7c8a; font-size: 10px; }.error-message { width: min(920px, 100%); margin: 0 auto 10px; color: var(--red); font-size: 12px; }
 .mobile-conversation-panel { display: none; }
 
