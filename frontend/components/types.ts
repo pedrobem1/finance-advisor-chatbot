@@ -45,6 +45,7 @@ export type ChatMessage = {
   id: string;
   role: "assistant" | "user";
   content: string;
+  created_at?: string;
   tools?: string[];
   charts?: ChartArtifact[];
   sources?: WebSource[];

@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from uuid import uuid4
 
 from agents.exceptions import (
@@ -7,12 +8,13 @@ from agents.exceptions import (
     MaxTurnsExceeded,
     ModelTimeoutError,
 )
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAIError, RateLimitError
 
 from app.agents.master_agent import run_master_agent
 from app.conversations.repository import ConversationStoreError, get_conversation_store
 from app.core.config import get_settings
+from app.core.rate_limit import SlidingWindowRateLimiter
 from app.rag.retriever import RAGError
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.tools.market_data import MarketDataError
@@ -25,6 +27,30 @@ class AIConfigurationError(Exception):
     """Raised when the application does not have an OpenAI API key."""
 
 
+class ChatRateLimitExceeded(Exception):
+    def __init__(self, retry_after_seconds: int) -> None:
+        self.retry_after_seconds = retry_after_seconds
+
+
+@lru_cache
+def get_chat_rate_limiter() -> SlidingWindowRateLimiter:
+    settings = get_settings()
+    return SlidingWindowRateLimiter(
+        max_requests=settings.chat_rate_limit_requests,
+        window_seconds=settings.chat_rate_limit_window_seconds,
+    )
+
+
+def get_client_id(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def enforce_chat_rate_limit(request: Request) -> None:
+    result = get_chat_rate_limiter().check(get_client_id(request))
+    if not result.allowed:
+        raise ChatRateLimitExceeded(result.retry_after_seconds)
+
+
 def chat_error_response(error: Exception) -> HTTPException:
     logger.warning("Chat request failed with %s", type(error).__name__)
 
@@ -35,6 +61,15 @@ def chat_error_response(error: Exception) -> HTTPException:
                 "code": "ai_configuration_error",
                 "message": "O servico de IA nao esta configurado corretamente.",
             },
+        )
+    if isinstance(error, ChatRateLimitExceeded):
+        return HTTPException(
+            status_code=429,
+            detail={
+                "code": "chat_rate_limited",
+                "message": "Voce enviou muitas mensagens. Tente novamente em instantes.",
+            },
+            headers={"Retry-After": str(error.retry_after_seconds)},
         )
     if isinstance(error, InputGuardrailTripwireTriggered):
         return HTTPException(
@@ -102,9 +137,14 @@ def chat_error_response(error: Exception) -> HTTPException:
 
 
 @router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
     if not get_settings().openai_api_key:
         raise chat_error_response(AIConfigurationError())
+
+    try:
+        enforce_chat_rate_limit(http_request)
+    except ChatRateLimitExceeded as error:
+        raise chat_error_response(error) from error
 
     conversation_id = request.conversation_id or uuid4()
 

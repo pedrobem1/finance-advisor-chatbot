@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     rag_index_directory: Path = BACKEND_DIRECTORY / "data" / "rag"
     conversation_database_path: Path = BACKEND_DIRECTORY / "data" / "conversations.db"
     conversation_history_limit: int = 40
+    chat_rate_limit_requests: int = 10
+    chat_rate_limit_window_seconds: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -53,6 +53,23 @@ function toolBadgeClass(tool: string) {
   return `tool-badge tool-badge--${TOOL_METADATA[tool]?.tone ?? "default"}`;
 }
 
+function formatMessageTime(createdAt?: string) {
+  if (!createdAt) return null;
+
+  const timestamp = createdAt.includes("T")
+    ? createdAt
+    : `${createdAt.replace(" ", "T")}Z`;
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo"
+  }).format(date);
+}
+
 async function getApiErrorMessage(response: Response) {
   const fallback = "Não foi possível concluir sua pergunta agora. Tente novamente em instantes.";
 
@@ -144,7 +161,8 @@ export function FinanceChat() {
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: question
+      content: question,
+      created_at: new Date().toISOString()
     };
     setMessages((current) => [...current, userMessage]);
     setMessage("");
@@ -169,6 +187,7 @@ export function FinanceChat() {
           id: crypto.randomUUID(),
           role: "assistant",
           content: result.answer,
+          created_at: new Date().toISOString(),
           tools: result.tools_used,
           charts: result.charts,
           sources: result.sources
@@ -298,7 +317,14 @@ export function FinanceChat() {
                 {item.role === "assistant" ? <Bot size={18} /> : <ArrowUpRight size={18} />}
               </div>
               <div className="message-body">
-                <div className="message-role">{item.role === "assistant" ? "MNC Finance" : "Você"}</div>
+                <div className="message-meta">
+                  <div className="message-role">{item.role === "assistant" ? "MNC Finance" : "Você"}</div>
+                  {formatMessageTime(item.created_at) && (
+                    <time className="message-time" dateTime={item.created_at}>
+                      {formatMessageTime(item.created_at)}
+                    </time>
+                  )}
+                </div>
                 {item.role === "assistant" ? (
                   <div className="markdown"><ReactMarkdown>{normalizeMarkdown(item.content)}</ReactMarkdown></div>
                 ) : (

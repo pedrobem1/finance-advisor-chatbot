@@ -5,6 +5,7 @@ from agents.exceptions import InputGuardrailTripwireTriggered, MaxTurnsExceeded,
 from fastapi.testclient import TestClient
 
 from app.agents.master_agent import MasterAgentResponse
+from app.core.rate_limit import SlidingWindowRateLimiter
 from app.main import app
 
 
@@ -22,7 +23,15 @@ class FakeConversationStore:
 def mock_openai_key(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.routes.chat.get_settings",
-        lambda: type("Settings", (), {"openai_api_key": "test-key"})(),
+        lambda: type(
+            "Settings",
+            (),
+            {
+                "openai_api_key": "test-key",
+                "chat_rate_limit_requests": 10,
+                "chat_rate_limit_window_seconds": 300,
+            },
+        )(),
     )
 
 
@@ -197,5 +206,40 @@ def test_chat_returns_scope_error(monkeypatch) -> None:
         "detail": {
             "code": "out_of_scope",
             "message": "Posso ajudar com finanças, investimentos, mercado e economia.",
+        }
+    }
+
+
+def test_chat_returns_rate_limit_error(monkeypatch) -> None:
+    store = FakeConversationStore()
+    limiter = SlidingWindowRateLimiter(max_requests=1, window_seconds=60)
+    mock_openai_key(monkeypatch)
+
+    async def fake_run_master_agent(message: str, conversation_id: UUID) -> MasterAgentResponse:
+        return MasterAgentResponse(
+            answer="Resposta simulada",
+            suggested_questions=[],
+            tools_used=[],
+            charts=[],
+            sources=[],
+        )
+
+    monkeypatch.setattr("app.api.routes.chat.run_master_agent", fake_run_master_agent)
+    monkeypatch.setattr("app.api.routes.chat.get_conversation_store", lambda: store)
+    monkeypatch.setattr(
+        "app.api.routes.chat.get_chat_rate_limiter",
+        lambda: limiter,
+    )
+
+    first_response = client.post("/chat", json={"message": "O que e uma acao?"})
+    response = client.post("/chat", json={"message": "O que e uma acao?"})
+
+    assert first_response.status_code == 200
+    assert response.status_code == 429
+    assert response.headers["Retry-After"]
+    assert response.json() == {
+        "detail": {
+            "code": "chat_rate_limited",
+            "message": "Voce enviou muitas mensagens. Tente novamente em instantes.",
         }
     }
