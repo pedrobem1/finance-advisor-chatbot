@@ -14,12 +14,14 @@ def test_extract_tools_used_preserves_unique_tool_order() -> None:
             SimpleNamespace(type="tool_call_item", tool_name="rag_specialist"),
             SimpleNamespace(type="tool_call_item", tool_name="rag_specialist"),
             SimpleNamespace(type="tool_call_item", tool_name="finance_specialist"),
+            SimpleNamespace(type="tool_call_item", tool_name="web_research_specialist"),
         ]
     )
 
     assert extract_tools_used(run_result) == [
         "rag_specialist",
         "finance_specialist",
+        "web_research_specialist",
     ]
 
 
@@ -35,6 +37,7 @@ def test_master_instructions_include_current_brazil_datetime(monkeypatch) -> Non
     assert "01/09/2026 10:30" in instructions
     assert "nao representa dados futuros" in instructions
     assert "nao consegue ver imagens, abrir anexos" in instructions
+    assert "web_research_specialist" in instructions
 
 
 def test_run_master_agent_uses_sqlite_session(monkeypatch, tmp_path) -> None:

@@ -116,6 +116,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             answer=result.answer,
             tools_used=result.tools_used,
             charts=result.charts,
+            sources=result.sources,
         )
     except (
         AgentsException,
@@ -137,4 +138,5 @@ async def chat(request: ChatRequest) -> ChatResponse:
         suggested_questions=result.suggested_questions,
         tools_used=result.tools_used,
         charts=result.charts,
+        sources=result.sources,
     )

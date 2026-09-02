@@ -25,13 +25,20 @@ const INITIAL_MESSAGE: ChatMessage = {
 const SPECIALISTS = [
   { name: "Mercado", dot: "agent-dot--green", description: "Consulta cotações, indicadores e dividendos de ativos." },
   { name: "Conhecimento", dot: "agent-dot--cyan", description: "Busca conceitos financeiros nos documentos indexados." },
-  { name: "Gráficos", dot: "agent-dot--amber", description: "Gera históricos e comparações visuais de preços." }
+  { name: "Gráficos", dot: "agent-dot--amber", description: "Gera históricos e comparações visuais de preços." },
+  {
+    name: "Pesquisa web",
+    dot: "agent-dot--blue",
+    description: "Pesquisa notícias e eventos recentes com fontes.",
+    notice: "A pesquisa web pode levar alguns instantes."
+  }
 ];
 
 const TOOL_METADATA: Record<string, { label: string; tone: string }> = {
   finance_specialist: { label: "Mercado", tone: "green" },
   rag_specialist: { label: "Conhecimento", tone: "cyan" },
-  chart_specialist: { label: "Gráfico", tone: "amber" }
+  chart_specialist: { label: "Gráfico", tone: "amber" },
+  web_research_specialist: { label: "Pesquisa web", tone: "blue" }
 };
 
 function normalizeMarkdown(content: string) {
@@ -66,6 +73,7 @@ export function FinanceChat() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isWebResearchNoticeOpen, setIsWebResearchNoticeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -162,7 +170,8 @@ export function FinanceChat() {
           role: "assistant",
           content: result.answer,
           tools: result.tools_used,
-          charts: result.charts
+          charts: result.charts,
+          sources: result.sources
         }
       ]);
     } catch (error) {
@@ -209,8 +218,22 @@ export function FinanceChat() {
           <div className="agent-list">
             {SPECIALISTS.map((specialist) => (
               <div className="agent-item" key={specialist.name}>
-                <span className="agent-item__name"><i className={`agent-dot ${specialist.dot}`} />{specialist.name}</span>
+                <span className="agent-item__name">
+                  <i className={`agent-dot ${specialist.dot}`} />
+                  {specialist.name}
+                  {specialist.notice && (
+                    <button
+                      className="agent-item__info"
+                      type="button"
+                      aria-expanded={isWebResearchNoticeOpen}
+                      aria-label="Sobre a pesquisa web"
+                      title="Sobre a pesquisa web"
+                      onClick={() => setIsWebResearchNoticeOpen((isOpen) => !isOpen)}
+                    ><Info size={13} /></button>
+                  )}
+                </span>
                 <p>{specialist.description}</p>
+                {specialist.notice && isWebResearchNoticeOpen && <p className="agent-item__notice">{specialist.notice}</p>}
               </div>
             ))}
           </div>
@@ -246,6 +269,7 @@ export function FinanceChat() {
                 <div><dt>Mercado</dt><dd>Cotações, indicadores e dividendos via yfinance.</dd></div>
                 <div><dt>Conhecimento</dt><dd>Conceitos recuperados da base local de documentos.</dd></div>
                 <div><dt>Gráficos</dt><dd>Históricos e comparações de preços em Plotly.</dd></div>
+                <div><dt>Pesquisa web</dt><dd>Notícias e eventos financeiros com fontes verificáveis.</dd></div>
               </dl>
               <p className="info-modal__scope">Este chat aceita apenas dúvidas sobre finanças, investimentos, mercado e economia.</p>
               <p className="info-modal__notice">Conteúdo educacional. Não constitui recomendação de investimento.</p>
@@ -286,6 +310,14 @@ export function FinanceChat() {
                   </div>
                 )}
                 {item.charts?.map((chart, index) => <PriceChart chart={chart} key={`${chart.symbol}-${index}`} />)}
+                {item.sources && item.sources.length > 0 && (
+                  <div className="source-list" aria-label="Fontes da pesquisa">
+                    <span>Fontes</span>
+                    {item.sources.map((source) => (
+                      <a href={source.url} key={source.url} rel="noreferrer" target="_blank">{source.domain}</a>
+                    ))}
+                  </div>
+                )}
               </div>
             </article>
           ))}
@@ -318,7 +350,7 @@ export function FinanceChat() {
               <Send size={18} />
             </button>
           </form>
-          <p className="disclaimer"><ChartNoAxesCombined size={14} />Conteúdo educacional. Não constitui recomendação de investimento.</p>
+          <p className="disclaimer"><ChartNoAxesCombined size={14} />Conteúdo educacional. Não constitui recomendação de investimento. O MNC Finance pode cometer erros.</p>
         </div>
       </section>
     </main>

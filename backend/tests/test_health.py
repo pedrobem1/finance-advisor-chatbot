@@ -48,6 +48,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
             suggested_questions=["Pergunta um", "Pergunta dois", "Pergunta tres"],
             tools_used=["finance_specialist"],
             charts=[],
+            sources=[],
         )
 
     monkeypatch.setattr(
@@ -70,6 +71,7 @@ def test_chat_returns_agent_answer(monkeypatch) -> None:
         "suggested_questions": ["Pergunta um", "Pergunta dois", "Pergunta tres"],
         "tools_used": ["finance_specialist"],
         "charts": [],
+        "sources": [],
     }
     assert store.exchanges[0]["user_message"] == "O que e uma acao?"
 
@@ -87,6 +89,7 @@ def test_chat_reuses_conversation_id(monkeypatch) -> None:
             suggested_questions=["Pergunta um", "Pergunta dois", "Pergunta tres"],
             tools_used=[],
             charts=[],
+            sources=[],
         )
 
     monkeypatch.setattr(

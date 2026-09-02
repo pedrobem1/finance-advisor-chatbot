@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.chart import ChartArtifact
+from app.schemas.source import WebSource
 
 
 class ConversationMessage(BaseModel):
@@ -12,6 +13,7 @@ class ConversationMessage(BaseModel):
     content: str
     tools: list[str] = Field(default_factory=list)
     charts: list[ChartArtifact] = Field(default_factory=list)
+    sources: list[WebSource] = Field(default_factory=list)
     created_at: str
 
 

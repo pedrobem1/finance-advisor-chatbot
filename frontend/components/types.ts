@@ -8,6 +8,11 @@ export type ChartArtifact = {
   };
 };
 
+export type WebSource = {
+  url: string;
+  domain: string;
+};
+
 export type ChatApiResponse = {
   answer: string;
   agent: string;
@@ -15,6 +20,7 @@ export type ChatApiResponse = {
   suggested_questions: string[];
   tools_used: string[];
   charts: ChartArtifact[];
+  sources: WebSource[];
 };
 
 export type ChatApiErrorResponse = {
@@ -41,4 +47,5 @@ export type ChatMessage = {
   content: string;
   tools?: string[];
   charts?: ChartArtifact[];
+  sources?: WebSource[];
 };
