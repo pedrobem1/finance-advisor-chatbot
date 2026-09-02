@@ -4,14 +4,11 @@ from contextlib import closing
 from pathlib import Path
 from uuid import UUID
 
+from app.conversations.errors import ConversationStoreError
 from app.core.config import get_settings
 from app.schemas.chart import ChartArtifact
 from app.schemas.conversation import ConversationDetail, ConversationMessage, ConversationSummary
 from app.schemas.source import WebSource
-
-
-class ConversationStoreError(RuntimeError):
-    """Raised when conversation data cannot be stored or retrieved."""
 
 
 class ConversationStore:
@@ -21,6 +18,7 @@ class ConversationStore:
 
     def save_exchange(
         self,
+        client_id: UUID,
         conversation_id: UUID,
         user_message: str,
         answer: str,
@@ -45,11 +43,17 @@ class ConversationStore:
                 self._initialize(connection)
                 connection.execute(
                     """
-                    INSERT OR IGNORE INTO conversations (conversation_id, title)
-                    VALUES (?, ?)
+                    INSERT OR IGNORE INTO conversations (conversation_id, client_id, title)
+                    VALUES (?, ?, ?)
                     """,
-                    (str(conversation_id), title),
+                    (str(conversation_id), str(client_id), title),
                 )
+                owner = connection.execute(
+                    "SELECT client_id FROM conversations WHERE conversation_id = ?",
+                    (str(conversation_id),),
+                ).fetchone()
+                if owner is None or owner["client_id"] != str(client_id):
+                    raise ConversationStoreError("A conversa pertence a outro navegador.")
                 connection.executemany(
                     """
                     INSERT INTO conversation_messages
@@ -59,13 +63,16 @@ class ConversationStore:
                     [(str(conversation_id), *message) for message in messages],
                 )
                 connection.execute(
-                    "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
-                    (str(conversation_id),),
+                    """
+                    UPDATE conversations SET updated_at = CURRENT_TIMESTAMP
+                    WHERE conversation_id = ? AND client_id = ?
+                    """,
+                    (str(conversation_id), str(client_id)),
                 )
         except sqlite3.Error as error:
             raise ConversationStoreError("Nao foi possivel salvar a conversa.") from error
 
-    def list_conversations(self, limit: int = 50) -> list[ConversationSummary]:
+    def list_conversations(self, client_id: UUID, limit: int = 50) -> list[ConversationSummary]:
         try:
             with closing(self._connect()) as connection:
                 self._initialize(connection)
@@ -73,17 +80,18 @@ class ConversationStore:
                     """
                     SELECT conversation_id, title, created_at, updated_at
                     FROM conversations
+                    WHERE client_id = ?
                     ORDER BY updated_at DESC, created_at DESC
                     LIMIT ?
                     """,
-                    (limit,),
+                    (str(client_id), limit),
                 ).fetchall()
         except sqlite3.Error as error:
             raise ConversationStoreError("Nao foi possivel listar as conversas.") from error
 
         return [self._to_summary(row) for row in rows]
 
-    def get_conversation(self, conversation_id: UUID) -> ConversationDetail | None:
+    def get_conversation(self, client_id: UUID, conversation_id: UUID) -> ConversationDetail | None:
         try:
             with closing(self._connect()) as connection:
                 self._initialize(connection)
@@ -91,9 +99,9 @@ class ConversationStore:
                     """
                     SELECT conversation_id, title, created_at, updated_at
                     FROM conversations
-                    WHERE conversation_id = ?
+                    WHERE conversation_id = ? AND client_id = ?
                     """,
-                    (str(conversation_id),),
+                    (str(conversation_id), str(client_id)),
                 ).fetchone()
                 if row is None:
                     return None
@@ -135,18 +143,19 @@ class ConversationStore:
         except (TypeError, ValueError, json.JSONDecodeError) as error:
             raise ConversationStoreError("A conversa armazenada esta invalida.") from error
 
-    def delete_conversation(self, conversation_id: UUID) -> bool:
+    def delete_conversation(self, client_id: UUID, conversation_id: UUID) -> bool:
         try:
             with closing(self._connect()) as connection, connection:
                 self._initialize(connection)
-                connection.execute(
-                    "DELETE FROM conversation_messages WHERE conversation_id = ?",
-                    (str(conversation_id),),
-                )
                 cursor = connection.execute(
-                    "DELETE FROM conversations WHERE conversation_id = ?",
-                    (str(conversation_id),),
+                    "DELETE FROM conversations WHERE conversation_id = ? AND client_id = ?",
+                    (str(conversation_id), str(client_id)),
                 )
+                if cursor.rowcount:
+                    connection.execute(
+                        "DELETE FROM conversation_messages WHERE conversation_id = ?",
+                        (str(conversation_id),),
+                    )
         except sqlite3.Error as error:
             raise ConversationStoreError("Nao foi possivel excluir a conversa.") from error
 
@@ -165,6 +174,7 @@ class ConversationStore:
             """
             CREATE TABLE IF NOT EXISTS conversations (
                 conversation_id TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
                 title TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -185,13 +195,21 @@ class ConversationStore:
             ON conversation_messages (conversation_id, id);
             """
         )
-        columns = {
+        message_columns = {
             row["name"]
             for row in connection.execute("PRAGMA table_info(conversation_messages)").fetchall()
         }
-        if "sources_json" not in columns:
+        if "sources_json" not in message_columns:
             connection.execute(
                 "ALTER TABLE conversation_messages ADD COLUMN sources_json TEXT NOT NULL DEFAULT '[]'"
+            )
+        conversation_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(conversations)").fetchall()
+        }
+        if "client_id" not in conversation_columns:
+            connection.execute(
+                "ALTER TABLE conversations ADD COLUMN client_id TEXT NOT NULL DEFAULT ''"
             )
 
     @staticmethod
@@ -210,4 +228,11 @@ class ConversationStore:
 
 
 def get_conversation_store() -> ConversationStore:
-    return ConversationStore(get_settings().conversation_database_path)
+    settings = get_settings()
+    if settings.conversation_store == "dynamodb":
+        if not settings.dynamodb_conversations_table:
+            raise ConversationStoreError("A tabela de conversas nao foi configurada.")
+        from app.conversations.dynamodb import DynamoDBConversationStore
+
+        return DynamoDBConversationStore(settings.dynamodb_conversations_table)  # type: ignore[return-value]
+    return ConversationStore(settings.conversation_database_path)

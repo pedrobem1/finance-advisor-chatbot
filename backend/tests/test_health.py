@@ -6,10 +6,11 @@ from fastapi.testclient import TestClient
 
 from app.agents.master_agent import MasterAgentResponse
 from app.core.rate_limit import SlidingWindowRateLimiter
-from app.main import app
+from app.main import app, lambda_handler
 
 
-client = TestClient(app)
+CLIENT_ID = UUID("054b7140-516a-456c-a5f6-3cc2f2a0a9a5")
+client = TestClient(app, headers={"X-Client-Id": str(CLIENT_ID)})
 
 
 class FakeConversationStore:
@@ -19,20 +20,12 @@ class FakeConversationStore:
     def save_exchange(self, **exchange) -> None:
         self.exchanges.append(exchange)
 
+    def get_conversation(self, *_):
+        return object()
+
 
 def mock_openai_key(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.api.routes.chat.get_settings",
-        lambda: type(
-            "Settings",
-            (),
-            {
-                "openai_api_key": "test-key",
-                "chat_rate_limit_requests": 10,
-                "chat_rate_limit_window_seconds": 300,
-            },
-        )(),
-    )
+    monkeypatch.setattr("app.api.routes.chat.get_openai_api_key", lambda: "test-key")
 
 
 def test_health_check() -> None:
@@ -43,6 +36,10 @@ def test_health_check() -> None:
         "status": "ok",
         "environment": "development",
     }
+
+
+def test_lambda_handler_is_available() -> None:
+    assert callable(lambda_handler)
 
 
 def test_chat_returns_agent_answer(monkeypatch) -> None:
@@ -124,10 +121,7 @@ def test_chat_rejects_empty_message() -> None:
 
 
 def test_chat_returns_friendly_configuration_error(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.api.routes.chat.get_settings",
-        lambda: type("Settings", (), {"openai_api_key": None})(),
-    )
+    monkeypatch.setattr("app.api.routes.chat.get_openai_api_key", lambda: None)
 
     response = client.post("/chat", json={"message": "O que e uma acao?"})
 

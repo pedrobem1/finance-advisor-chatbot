@@ -1,6 +1,7 @@
 import logging
 from functools import lru_cache
-from uuid import uuid4
+from typing import Annotated
+from uuid import UUID, uuid4
 
 from agents.exceptions import (
     AgentsException,
@@ -8,12 +9,13 @@ from agents.exceptions import (
     MaxTurnsExceeded,
     ModelTimeoutError,
 )
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAIError, RateLimitError
 
 from app.agents.master_agent import run_master_agent
+from app.api.client_identity import require_browser_client_id
 from app.conversations.repository import ConversationStoreError, get_conversation_store
-from app.core.config import get_settings
+from app.core.config import get_openai_api_key, get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.rag.retriever import RAGError
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -41,12 +43,12 @@ def get_chat_rate_limiter() -> SlidingWindowRateLimiter:
     )
 
 
-def get_client_id(request: Request) -> str:
+def get_rate_limit_client_id(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
 def enforce_chat_rate_limit(request: Request) -> None:
-    result = get_chat_rate_limiter().check(get_client_id(request))
+    result = get_chat_rate_limiter().check(get_rate_limit_client_id(request))
     if not result.allowed:
         raise ChatRateLimitExceeded(result.retry_after_seconds)
 
@@ -137,8 +139,12 @@ def chat_error_response(error: Exception) -> HTTPException:
 
 
 @router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
-    if not get_settings().openai_api_key:
+async def chat(
+    request: ChatRequest,
+    http_request: Request,
+    client_id: Annotated[UUID, Depends(require_browser_client_id)],
+) -> ChatResponse:
+    if not get_openai_api_key():
         raise chat_error_response(AIConfigurationError())
 
     try:
@@ -147,10 +153,14 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
         raise chat_error_response(error) from error
 
     conversation_id = request.conversation_id or uuid4()
+    store = get_conversation_store()
 
     try:
+        if request.conversation_id and store.get_conversation(client_id, conversation_id) is None:
+            raise HTTPException(status_code=404, detail="Conversa nao encontrada.")
         result = await run_master_agent(request.message, conversation_id)
-        get_conversation_store().save_exchange(
+        store.save_exchange(
+            client_id=client_id,
             conversation_id=conversation_id,
             user_message=request.message,
             answer=result.answer,
