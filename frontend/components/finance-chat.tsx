@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { Activity, ArrowUpRight, Bot, ChartNoAxesCombined, History, Info, Plus, Send, Sparkles, X } from "lucide-react";
 
@@ -24,7 +25,7 @@ const INITIAL_MESSAGE: ChatMessage = {
 
 const SPECIALISTS = [
   { name: "Mercado", dot: "agent-dot--green", description: "Consulta cotações, indicadores e dividendos de ativos." },
-  { name: "Conhecimento", dot: "agent-dot--cyan", description: "Busca conceitos financeiros nos documentos indexados." },
+  { name: "Conhecimento", dot: "agent-dot--cyan", description: "Busca conceitos financeiros em uma base de dados." },
   { name: "Gráficos", dot: "agent-dot--amber", description: "Gera históricos e comparações visuais de preços." },
   {
     name: "Pesquisa web",
@@ -217,7 +218,9 @@ export function FinanceChat() {
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark"><Bot size={18} /></div>
+          <div className="brand-mark">
+            <Image src="/mnc-robo.png" alt="MNC Finance" width={30} height={30} priority />
+          </div>
           <span>MNC Finance</span>
         </div>
 
