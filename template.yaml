@@ -16,7 +16,7 @@ Globals:
     Architectures:
       - x86_64
     MemorySize: 1536
-    Timeout: 30
+    Timeout: 60
 
 Resources:
   MNCFinanceApi:
@@ -42,6 +42,9 @@ Resources:
     Properties:
       PackageType: Image
       ImageUri: !Ref ImageUri
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
       Environment:
         Variables:
           ENVIRONMENT: production
@@ -163,6 +166,9 @@ Outputs:
   ApiUrl:
     Description: Public URL of the MNC Finance API.
     Value: !Sub "https://${MNCFinanceApi}.execute-api.${AWS::Region}.amazonaws.com"
+  FunctionUrl:
+    Description: Public Lambda Function URL used by the frontend API requests.
+    Value: !GetAtt MNCFinanceFunctionUrl.FunctionUrl
   ConversationsTableName:
     Description: DynamoDB table that stores conversations and agent sessions.
     Value: !Ref MNCFinanceConversationsTable
