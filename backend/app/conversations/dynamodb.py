@@ -2,6 +2,8 @@ import asyncio
 import json
 import time
 from datetime import UTC, datetime
+from decimal import Decimal
+from math import isfinite
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -115,7 +117,10 @@ class DynamoDBConversationStore:
                         role=message["role"],
                         content=message["content"],
                         tools=message.get("tools", []),
-                        charts=[ChartArtifact.model_validate(chart) for chart in message.get("charts", [])],
+                        charts=[
+                            ChartArtifact.model_validate(_from_dynamodb_value(chart))
+                            for chart in message.get("charts", [])
+                        ],
                         sources=[WebSource.model_validate(source) for source in message.get("sources", [])],
                         created_at=message["created_at"],
                     )
@@ -154,17 +159,19 @@ class DynamoDBConversationStore:
     ) -> None:
         order = f"{time.time_ns():020d}-{position:02d}"
         self.table.put_item(
-            Item={
-                "pk": conversation_key,
-                "sk": f"DISPLAY#{order}#{uuid4().hex}",
-                "message_id": str(uuid4()),
-                "role": role,
-                "content": content,
-                "tools": tools,
-                "charts": charts,
-                "sources": sources,
-                "created_at": created_at,
-            }
+            Item=_to_dynamodb_value(
+                {
+                    "pk": conversation_key,
+                    "sk": f"DISPLAY#{order}#{uuid4().hex}",
+                    "message_id": str(uuid4()),
+                    "role": role,
+                    "content": content,
+                    "tools": tools,
+                    "charts": charts,
+                    "sources": sources,
+                    "created_at": created_at,
+                }
+            )
         )
 
     def _query_partition(self, partition_key: str, prefix: str | None = None) -> list[dict[str, Any]]:
@@ -197,6 +204,30 @@ class DynamoDBConversationStore:
     @classmethod
     def _conversation_index_key(cls, client_id: UUID) -> str:
         return f"{cls._CONVERSATION_INDEX_PREFIX}#{client_id}"
+
+
+def _to_dynamodb_value(value: Any) -> Any:
+    """Converts values that DynamoDB cannot serialize in nested chart payloads."""
+    if isinstance(value, float):
+        return Decimal(str(value)) if isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _to_dynamodb_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_to_dynamodb_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_to_dynamodb_value(item) for item in value]
+    return value
+
+
+def _from_dynamodb_value(value: Any) -> Any:
+    """Restores decimal chart values to JSON-friendly numbers for the API response."""
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: _from_dynamodb_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_from_dynamodb_value(item) for item in value]
+    return value
 
 
 class DynamoDBSession:
