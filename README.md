@@ -46,21 +46,11 @@ O projeto foi construído com foco em arquitetura de agentes, experiência de us
 
 ## Screenshots
 
-Adicione os seus prints em `docs/screenshots/` usando os nomes abaixo. Os blocos já estão preparados para aparecer nesta seção quando as imagens forem commitadas.
-
-<!--
 ![Tela inicial do MNC Finance](docs/screenshots/home.png)
 
 ![Resposta com gráfico e ferramentas utilizadas](docs/screenshots/chart-response.png)
 
 ![Pesquisa web com fontes](docs/screenshots/web-research.png)
--->
-
-| Tela | Sugestão de arquivo | O que mostrar |
-| --- | --- | --- |
-| Início | `docs/screenshots/home.png` | Interface, especialistas e perguntas sugeridas. |
-| Análise de ativo | `docs/screenshots/chart-response.png` | Resposta com gráfico, dados de mercado e badges de ferramentas. |
-| Pesquisa web | `docs/screenshots/web-research.png` | Resposta com fontes de uma notícia ou evento de mercado. |
 
 ## Arquitetura
 
