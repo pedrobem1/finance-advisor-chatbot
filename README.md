@@ -48,7 +48,7 @@ O projeto foi construído com foco em arquitetura de agentes, experiência de us
 
 ![Tela inicial do MNC Finance](docs/screenshots/home.png)
 
-![Resposta com gráfico e ferramentas utilizadas](docs/screenshots/chart-response.png)
+![Resposta com gráfico e ferramentas utilizadas](docs/screenshots/response.png)
 
 ![Pesquisa web com fontes](docs/screenshots/web-research.png)
 
