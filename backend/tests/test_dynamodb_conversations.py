@@ -1,7 +1,9 @@
 import asyncio
+from decimal import Decimal
 from uuid import UUID
 
 from app.conversations.dynamodb import DynamoDBConversationStore, DynamoDBSession
+from app.schemas.chart import ChartArtifact
 from app.schemas.source import WebSource
 
 
@@ -105,3 +107,38 @@ def test_dynamodb_session_keeps_agent_history_in_order() -> None:
     assert asyncio.run(session.pop_item()) == {"role": "assistant", "content": "Oi"}
     asyncio.run(session.clear_session())
     assert asyncio.run(session.get_items()) == []
+
+
+def test_dynamodb_conversation_store_serializes_chart_floats() -> None:
+    table = FakeDynamoTable()
+    store = DynamoDBConversationStore("mnc-conversations", table=table)
+    client_id = UUID("054b7140-516a-456c-a5f6-3cc2f2a0a9a5")
+    conversation_id = UUID("a2eb2b69-9a4b-4e76-9090-5936f73bc117")
+    chart = ChartArtifact(
+        symbol="PETR4.SA",
+        period="3mo",
+        figure={"data": [{"x": ["2026-09-01"], "y": [42.7, 43.15]}]},
+    )
+
+    store.save_exchange(
+        client_id=client_id,
+        conversation_id=conversation_id,
+        user_message="Gere um grafico da PETR4",
+        answer="Aqui esta o grafico.",
+        tools_used=["chart_specialist"],
+        charts=[chart],
+        sources=[],
+    )
+
+    stored_assistant_message = next(
+        item for item in table.items.values() if item.get("role") == "assistant"
+    )
+    assert stored_assistant_message["charts"][0]["figure"]["data"][0]["y"] == [
+        Decimal("42.7"),
+        Decimal("43.15"),
+    ]
+
+    conversation = store.get_conversation(client_id, conversation_id)
+
+    assert conversation is not None
+    assert conversation.messages[1].charts[0].figure["data"][0]["y"] == [42.7, 43.15]
