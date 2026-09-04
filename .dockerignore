@@ -1,0 +1,10 @@
+.git
+.vscode
+docs
+**/.venv
+**/__pycache__
+**/.pytest_cache
+backend/.env
+backend/data/conversations.db*
+frontend/.next
+frontend/node_modules
